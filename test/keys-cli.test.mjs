@@ -32,8 +32,21 @@ test('the script runs and prints usage', () => {
 		assert.ok(out.includes(command), `usage must mention ${command}`);
 	}
 
-	// The fragment is the identifier we want people reaching for first.
-	assert.ok(out.indexOf('…') < out.indexOf('row number'), 'usage should lead with the fragment');
+	// The fragment is the identifier we want people reaching for first, so it has
+	// to appear before row numbers are offered.
+	assert.ok(
+		out.indexOf('Qw8zT1') < out.indexOf('row number'),
+		'usage should present the fragment before row numbers',
+	);
+
+	// The awkward-to-type ellipsis must be documented as optional, since `list`
+	// prints it and people will paste it.
+	assert.match(out, /never need\s+to type it/, 'usage must say the ellipsis is optional');
+
+	// And no command a user is told to type may contain it.
+	for (const line of out.split('\n').filter((l) => /npm run keys|keys\.mjs/.test(l))) {
+		assert.doesNotMatch(line, /…/, `command example must not contain an ellipsis: ${line.trim()}`);
+	}
 });
 
 test('an unknown command exits non-zero', () => {

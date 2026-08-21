@@ -121,7 +121,7 @@ function show(people, all) {
  *
  * Accepts, in order of how safe each is against a shifting list:
  *
- *   remove …Qw8zT1     the key fragment alone — cannot shift, so no prompt
+ *   remove Qw8zT1      the key fragment alone — cannot shift, so no prompt
  *   remove 3 Qw8zT1    a number, checked against the fragment at that position
  *   remove 3           a number alone, confirmed by name
  *   remove "Alice"     a name, confirmed by name
@@ -164,7 +164,7 @@ function resolve(tokens) {
 				`#${parts[0]} is ${person.name} (…${person.hint}), not …${parts[1]}.\n\n`
 				+ 'The list has changed since you looked — someone else added or removed a key.\n'
 				+ (actual
-					? `…${parts[1]} is now ${actual.name}. Re-run with just the fragment:\n  npm run keys ${command} …${parts[1]}`
+					? `…${parts[1]} is now ${actual.name}. Re-run with just the fragment:\n  npm run keys ${command} ${parts[1]}`
 					: `Nothing ends in …${parts[1]} any more. Run \`list\` again.`),
 			);
 		}
@@ -273,9 +273,9 @@ Manage who may use the Linky Live add-on.
   node scripts/keys.mjs issue "Alice"       Generate a key and print it once
   node scripts/keys.mjs list                Show everyone, with a fragment each
   node scripts/keys.mjs search alice        Same, filtered
-  node scripts/keys.mjs revoke …Qw8zT1      Block them, keeping the record
-  node scripts/keys.mjs restore …Qw8zT1     Undo a revoke
-  node scripts/keys.mjs remove …Qw8zT1      Delete the record entirely
+  node scripts/keys.mjs revoke Qw8zT1      Block them, keeping the record
+  node scripts/keys.mjs restore Qw8zT1     Undo a revoke
+  node scripts/keys.mjs remove Qw8zT1      Delete the record entirely
 
 revoke, restore and remove confirm first, naming who they matched. Add --yes to
 skip that.
@@ -283,13 +283,16 @@ skip that.
 The fragment shown by 'list' is what identifies a key — it never changes. A name
 works too, and a row number is accepted for quick use:
 
-  …Qw8zT1        the fragment; preferred
+  Qw8zT1         the fragment; preferred
   "Alice"        a name
   3 Qw8zT1       a row number, checked against that fragment
   3              a row number alone, confirmed by name
 
 Row numbers move when anyone adds or removes a key, so they are checked or
 confirmed rather than trusted. --yes skips prompts.
+
+'list' prints fragments with a leading ellipsis for readability; you never need
+to type it, and it is ignored if you paste it.
 `;
 
 if (!command || command === 'help' || command === '--help') {
@@ -382,7 +385,7 @@ async function main() {
 			console.log(
 				`\n  ${shown.length}${shown.length === all.length ? '' : ` of ${all.length}`} key(s). `
 				+ 'Include the fragment to be sure of the target:\n'
-				+ `    npm run keys remove …${shown[0].hint || ''}\n`
+				+ `    npm run keys remove ${shown[0].hint || ''}\n`
 				+ `    npm run keys remove ${all.findIndex((p) => p.hash === shown[0].hash) + 1} ${shown[0].hint || ''}\n`,
 			);
 			break;

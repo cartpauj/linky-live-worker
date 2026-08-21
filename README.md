@@ -164,9 +164,9 @@ terminal, so nothing needs a deploy and no credential goes in a config file.
 npm run keys issue "Alice"          # generates a key and prints it once
 npm run keys list                   # everyone, with a key fragment each
 npm run keys search alice           # same, filtered
-npm run keys revoke …Qw8zT1         # block, keeping the record
-npm run keys restore …Qw8zT1        # undo a revoke
-npm run keys remove …Qw8zT1         # delete the record
+npm run keys revoke Qw8zT1         # block, keeping the record
+npm run keys restore Qw8zT1        # undo a revoke
+npm run keys remove Qw8zT1         # delete the record
 ```
 
 You supply a unique name; the key is generated and printed alongside your service

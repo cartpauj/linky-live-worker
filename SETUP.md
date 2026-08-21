@@ -117,13 +117,16 @@ npm run keys issue "Alice"          # generates a key and prints it once
 npm run keys list                   # everyone, with a key fragment each
 npm run keys search alice           # same, filtered
 
-npm run keys revoke …Qw8zT1         # block, keeping the record
-npm run keys restore …Qw8zT1        # undo a revoke
-npm run keys remove …Qw8zT1         # delete the record
+npm run keys revoke Qw8zT1         # block, keeping the record
+npm run keys restore Qw8zT1        # undo a revoke
+npm run keys remove Qw8zT1         # delete the record
 ```
 
 The fragment shown in `list` is what identifies someone. It never changes, so it
 is unambiguous even when several people are making changes at once.
+
+`list` prints it as `…Qw8zT1`; the leading ellipsis is decoration and is stripped
+if you paste it, so `Qw8zT1` and `…Qw8zT1` both work.
 
 You supply a name; the key is generated and printed **together with your service
 hostname**, so you can send someone everything they need in one message:
@@ -151,7 +154,7 @@ npm run keys remove "Alice" && npm run keys issue "Alice"
 
 | Form | Behaviour |
 | --- | --- |
-| `remove …Qw8zT1` | **Preferred.** The fragment identifies one key and never changes |
+| `remove Qw8zT1` | **Preferred.** The fragment identifies one key and never changes |
 | `remove "Alice"` | A name, confirmed by naming who it matched |
 | `remove 3 Qw8zT1` | A row number, checked against the fragment beside it |
 | `remove 3` | A row number alone, confirmed by naming who it matched |
@@ -178,7 +181,7 @@ theirs moves by one. Two things handle that:
 - **Pass the fragment as well** — `remove 3 Qw8zT1`. If the list moved, `#3` no
   longer has that fragment and the command refuses, telling you who is there now
   and who actually holds the fragment.
-- **Or pass the fragment alone** — `remove …Qw8zT1`. Fragments do not shift, so
+- **Or pass the fragment alone** — `remove Qw8zT1`. Fragments do not shift, so
   this is unambiguous no matter what anyone else did.
 
 A bare number still works and is confirmed by naming who it matched, which is
