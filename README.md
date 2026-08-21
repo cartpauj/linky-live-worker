@@ -187,8 +187,10 @@ npm run keys remove Qw8zT1         # delete them and their addresses
 ```
 
 `sites` is the inventory: every address the service has handed out, whose key
-owns it, whether its link is currently on, and any bypass paths. Reading it needs
-nothing but wrangler, since it comes from KV.
+owns it, which Local site it belongs to, when it was allocated, and any bypass
+paths. Reading it needs nothing but wrangler, since it comes from KV. Whether a
+link is up is not shown — that is the tunnel on someone's own machine, which the
+service does not track.
 
 You supply a unique name; the key is generated and printed alongside your service
 hostname, so both halves can be sent in one message. Listings show names, status,

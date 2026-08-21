@@ -217,9 +217,13 @@ npm run keys sites                  # everything, grouped by owner
 npm run keys sites Qw8zT1          # one person's
 ```
 
-Each row is one address: whether its link is on, the URL, the Local site it
-belongs to, when it was allocated, and any bypass paths. This reads KV only, so
-it needs no Cloudflare token.
+Each row is one address: the URL, the Local site it belongs to, when it was
+allocated, and any bypass paths. This reads KV only, so it needs no Cloudflare
+token.
+
+Whether a link is currently up is not part of it. That depends on the tunnel
+running on its owner's machine, which the service does not track — their Linky
+Live tab is where that shows.
 
 ### Revoking and removing
 

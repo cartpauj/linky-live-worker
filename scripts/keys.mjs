@@ -108,12 +108,19 @@ function showSites(person, sites) {
 		return;
 	}
 
+	/*
+	 * No on/off column. Whether a link is up is a fact about the tunnel on
+	 * someone's laptop, and KV holds only what was allocated — printing a state
+	 * from here would be printing a guess.
+	 */
 	for (const site of sites) {
-		const state = site.enabled ? 'on ' : 'off';
 		const when = site.createdAt ? site.createdAt.slice(0, 10) : '';
 		const bypass = (site.bypassPaths || []).join(' ');
 
-		console.log(`    ${state}  ${String(site.url || site.hostname).padEnd(38)} ${String(site.siteName || '').padEnd(20)} ${when}  ${bypass}`);
+		console.log(
+			`    ${String(site.url || site.hostname).padEnd(38)} ${String(site.siteName || '').padEnd(20)} `
+			+ `${when}  ${bypass}`,
+		);
 	}
 }
 
