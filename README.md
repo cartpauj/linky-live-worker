@@ -33,6 +33,7 @@ npx wrangler whoami                        # copy your account id
 
 $EDITOR wrangler.toml                      # account id, zone, hostname
 npm run kv                                 # creates the KV namespace, fills its id in
+npm run check                              # confirms nothing is left unset
 
 npx wrangler secret put CF_API_TOKEN       # needs a real terminal — see below
 npm run deploy
@@ -43,6 +44,10 @@ npm run keys issue "Alice"                 # a key for your first user
 The KV step comes after editing, because wrangler reads the account id from
 `wrangler.toml`. `npm run kv` writes the new namespace id straight into the file,
 so it is the one placeholder you never copy by hand.
+
+`npm run check` reads `wrangler.toml` back and names anything still unset.
+wrangler validates syntax but not content, so a leftover placeholder otherwise
+surfaces later as an opaque Cloudflare error.
 
 Two things that are not obvious:
 
@@ -383,6 +388,7 @@ covers gateway traffic. Neither is close for a team.
 ```bash
 node --test test/          # no install needed
 npm run kv                 # creates the KV namespace and writes its id in
+npm run check              # names anything still unset in wrangler.toml
 npm run deploy             # passes account_id through to the Worker
 npx wrangler tail          # live logs
 ```

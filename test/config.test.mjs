@@ -344,3 +344,34 @@ test('the deploy wrapper attaches the composed domain', () => {
 	// Printed, so a wrong hostname is visible at deploy rather than discovered later.
 	assert.match(wrapper, /Attaching custom domain/, 'must say what it is attaching');
 });
+
+test('every command the scripts tell you to run is documented', () => {
+	const readme = readFileSync('README.md', 'utf8');
+	const setup = readFileSync('SETUP.md', 'utf8');
+
+	// `npm run kv` ends by pointing at `npm run check`, which the README did not
+	// mention anywhere — a dead end for anyone following the quick start rather
+	// than SETUP.md. Anything the tooling names has to exist in both docs.
+	const named = new Set();
+
+	for (const file of ['kv.mjs', 'deploy.mjs', 'check-config.mjs', 'keys.mjs']) {
+		for (const [, name] of readFileSync(`scripts/${file}`, 'utf8').matchAll(/npm run ([a-z]+)/g)) {
+			named.add(name);
+		}
+	}
+
+	assert.ok(named.size >= 3, 'expected the scripts to cross-reference each other');
+
+	for (const name of named) {
+		assert.match(readme, new RegExp(`npm run ${name}\\b`), `README must document npm run ${name}`);
+		assert.match(setup, new RegExp(`npm run ${name}\\b`), `SETUP must document npm run ${name}`);
+	}
+
+	// And each one has to be a script that exists, or the docs send people at a
+	// command npm cannot run.
+	const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
+
+	for (const name of named) {
+		assert.ok(pkg.scripts[name], `npm run ${name} is referenced but not defined`);
+	}
+});
