@@ -77,3 +77,71 @@ test('the template pairs the duplicated values consistently', () => {
 	// And the duplication must be explained where it is written.
 	assert.match(template, /not visible to the running Worker/, 'template must explain why it repeats');
 });
+
+test('the checker requires exactly the values the Worker reads', () => {
+	const checker = readFileSync('scripts/check-config.mjs', 'utf8');
+	const template = readFileSync('wrangler.example.toml', 'utf8');
+
+	// Anything the code reads from env must either be required by the checker or
+	// ship with a working default, or someone deploys a Worker that fails at
+	// runtime with no warning.
+	const used = [...readFileSync('src/cf.js', 'utf8').matchAll(/env\.([A-Z_]+)/g)]
+		.concat([...readFileSync('src/index.js', 'utf8').matchAll(/env\.([A-Z_]+)/g)])
+		.map((m) => m[1]);
+
+	for (const name of new Set(used)) {
+		// LINKY is a binding, CF_API_TOKEN is a secret; neither is a [vars] entry.
+		if (name === 'LINKY' || name === 'CF_API_TOKEN') {
+			continue;
+		}
+
+		const inTemplate = new RegExp(`^\\s*${name}\\s*=`, 'm').test(template);
+
+		assert.ok(inTemplate, `${name} is read by the Worker but absent from the template`);
+	}
+
+	// The secret cannot be checked from the file, so it must at least be mentioned.
+	assert.match(checker, /CF_API_TOKEN/, 'the checker must mention the secret it cannot see');
+});
+
+test('every placeholder in the template is something the checker catches', () => {
+	const template = readFileSync('wrangler.example.toml', 'utf8');
+	const checker = readFileSync('scripts/check-config.mjs', 'utf8');
+
+	// A placeholder nobody checks is a deploy that fails confusingly later.
+	for (const line of template.split('\n')) {
+		const match = line.match(/^\s*([A-Za-z_]+)\s*=\s*"[^"]*YOUR_[^"]*"/);
+
+		if (match) {
+			assert.match(
+				checker,
+				new RegExp(`'${match[1]}'`),
+				`${match[1]} is a placeholder but the checker does not require it`,
+			);
+		}
+	}
+});
+
+test('the setup doc names every placeholder in the template', () => {
+	const template = readFileSync('wrangler.example.toml', 'utf8');
+	const setup = readFileSync('SETUP.md', 'utf8');
+
+	// A placeholder the doc never mentions is one the reader will leave in place
+	// and then hit as an opaque Cloudflare error.
+	const placeholders = new Set(
+		[...template.matchAll(/^\s*([A-Za-z_]+)\s*=\s*"[^"]*YOUR_[^"]*"/gm)].map((m) => m[1]),
+	);
+
+	assert.ok(placeholders.size >= 6, `expected at least 6 placeholders, found ${placeholders.size}`);
+
+	for (const key of placeholders) {
+		assert.ok(setup.includes(key), `SETUP.md never mentions ${key}`);
+	}
+
+	// And the doc's count has to match reality, or it goes stale silently.
+	assert.match(
+		setup,
+		new RegExp(`\\*\\*${placeholders.size} placeholders\\*\\*|\\*\\*six placeholders\\*\\*`, 'i'),
+		`SETUP.md should state there are ${placeholders.size} placeholders`,
+	);
+});

@@ -46,38 +46,76 @@ records. If the zone runs production services, consider a dedicated domain.
 
 ```bash
 cp wrangler.example.toml wrangler.toml
-$EDITOR wrangler.toml
 ```
 
 `wrangler.toml` is gitignored and holds no credentials — only ids and hostnames.
-Every field is commented in place; these are the ones to change:
 
-| Field | Value |
-| --- | --- |
-| `name` | What to call the Worker, e.g. `linky-live` |
-| `WORKER_SCRIPT_NAME` | The same value again — it is not visible to the running Worker otherwise |
-| `account_id`, `CF_ACCOUNT_ID` | Your account id |
-| `ZONE_NAME` | The domain, e.g. `example.com` |
-| `CF_ZONE_ID` | That zone's id |
-| `HOSTNAME_PREFIX` | Prefix for generated hostnames, e.g. `linky` |
-| `[[kv_namespaces]]` `id` | Filled in by the next step |
-| `[[routes]]` `pattern` | The API hostname, e.g. `linky-live.example.com` |
+There are **six placeholders**, each spelled `YOUR_…` so they are easy to find.
+Replace all six:
 
-Now create the KV namespace and paste the id it prints into the
-`[[kv_namespaces]]` block:
+```toml
+account_id = "YOUR_ACCOUNT_ID"          # npx wrangler whoami
+
+[vars]
+ZONE_NAME  = "YOUR_ZONE"                # example.com — the domain links live on
+CF_ACCOUNT_ID = "YOUR_ACCOUNT_ID"       # the same account id again
+CF_ZONE_ID = "YOUR_ZONE_ID"             # the zone's id, from its overview page
+
+[[kv_namespaces]]
+id = "YOUR_KV_NAMESPACE_ID"             # from the command below
+
+[[routes]]
+pattern = "linky-live.YOUR_ZONE"        # linky-live.example.com
+```
+
+Two of them repeat a value: `CF_ACCOUNT_ID` is the same id as `account_id`, and
+the zone name in `pattern` is the same domain as `ZONE_NAME`. That is not a
+mistake — see below.
+
+Everything else in the file already works and only needs touching if you want
+different names:
+
+```toml
+name = "linky-live"                     # what the Worker deploys as
+WORKER_SCRIPT_NAME = "linky-live"       # must equal name — see below
+HOSTNAME_PREFIX = "linky"               # gives linky-k4d8vn.example.com
+```
+
+Set `account_id` first, then create the KV namespace and paste the id it prints
+into `[[kv_namespaces]]`:
 
 ```bash
 npx wrangler kv namespace create LINKY
 ```
 
-This has to come **after** `account_id` is set, because wrangler reads the
-account from `wrangler.toml`. With the placeholder still in place it fails with
-`Could not route to /client/v4/accounts/YOUR_ACCOUNT_ID/... [code: 7003]`.
+The order matters: wrangler reads the account from `wrangler.toml`, so running
+this with the placeholder still in place fails with `Could not route to
+/client/v4/accounts/YOUR_ACCOUNT_ID/... [code: 7003]`.
 
-Hostnames come out as `linky-k4d8vn.example.com`. The prefix is yours to choose;
-the flat shape is not — free Universal SSL covers `example.com` and
-`*.example.com` but nothing deeper, so a nested `k4d8vn.linky.example.com` would
-have no valid certificate.
+Then confirm nothing is left:
+
+```bash
+npm run check
+```
+
+It names every value still unset, and catches a `name` / `WORKER_SCRIPT_NAME`
+mismatch — which otherwise only surfaces later, when provisioning a site.
+
+### Why two values are repeated
+
+`account_id` and `name` are wrangler's own settings, used only to deploy. They are
+**not visible to the running Worker**, which makes its own Cloudflare API calls —
+a tunnel, a DNS record and a route for every site it provisions — so it needs the
+same facts at runtime. That is what `CF_ACCOUNT_ID` and `WORKER_SCRIPT_NAME` are
+for. Keep each pair identical; `npm run check` verifies the second pair.
+
+### A note on hostnames
+
+Generated hostnames look like `linky-k4d8vn.example.com`. `HOSTNAME_PREFIX` is
+yours to choose; the flat shape is not. Cloudflare's free Universal SSL covers
+`example.com` and `*.example.com` but nothing deeper, and wildcard certificates
+only ever cover one level — so a nested `k4d8vn.linky.example.com` would have no
+valid certificate without the paid Advanced Certificate Manager.
 
 ## 5. Deploy
 
