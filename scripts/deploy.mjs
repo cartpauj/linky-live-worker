@@ -13,34 +13,45 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
 
-let config;
+import { readConfig } from './config.mjs';
 
-try {
-	config = readFileSync('wrangler.toml', 'utf8');
-} catch {
+const config = readConfig();
+
+if (config.missing) {
 	console.error('\nNo wrangler.toml here. Run this from the project root, after:\n  cp wrangler.example.toml wrangler.toml\n');
 	process.exit(1);
 }
 
-const accountId = config.match(/^\s*account_id\s*=\s*"([^"]*)"/m)?.[1];
-
-if (!accountId || /^YOUR_|^$/.test(accountId)) {
+if (config.unset(config.accountId)) {
 	console.error('\naccount_id is not set in wrangler.toml. Run:\n  npx wrangler whoami\n\nthen put the id in as `── 1 ──` says. `npm run check` lists anything else missing.\n');
 	process.exit(1);
 }
 
-// Anything already set in [vars] wins, so an operator can still override.
+if (!config.apiHost) {
+	console.error('\nZONE_NAME is not set in wrangler.toml, so the API hostname cannot be built.\nRun `npm run check`.\n');
+	process.exit(1);
+}
+
+/*
+ * Both values are passed rather than written in wrangler.toml.
+ *
+ * TOML has no variable references, so `account_id` could not be reused for the
+ * var the Worker reads, and ZONE_NAME could not be reused in a route pattern.
+ * Composing them here keeps each entered exactly once.
+ */
 const args = [
 	'wrangler',
 	'deploy',
 	'--var',
-	`CF_ACCOUNT_ID:${accountId}`,
+	`CF_ACCOUNT_ID:${config.accountId}`,
+	'--domains',
+	config.apiHost,
 	...process.argv.slice(2),
 ];
 
-console.log(`\nDeploying to account ${accountId.slice(0, 8)}…\n`);
+console.log(`\nDeploying to account ${config.accountId.slice(0, 8)}…`);
+console.log(`Attaching custom domain ${config.apiHost}\n`);
 
 try {
 	execFileSync('npx', args, { stdio: 'inherit' });

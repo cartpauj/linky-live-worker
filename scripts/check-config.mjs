@@ -19,7 +19,6 @@ const REQUIRED = [
 	{ key: 'ZONE_NAME', where: '[vars]', what: 'The domain links are created on, e.g. example.com' },
 	{ key: 'CF_ZONE_ID', where: '[vars]', what: 'That zone\'s id, from its Cloudflare overview page' },
 	{ key: 'id', where: '[[kv_namespaces]]', what: 'From `wrangler kv namespace create LINKY`' },
-	{ key: 'pattern', where: '[[routes]]', what: 'The API hostname, e.g. linky-live.example.com' },
 ];
 
 /** Fields with working defaults, checked only for internal consistency. */

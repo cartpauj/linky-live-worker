@@ -130,7 +130,7 @@ user keys live in KV (see [Adding people](#adding-people)).
 | `CF_ZONE_ID` | `[vars]` | That zone's id, from its Cloudflare overview page |
 | `HOSTNAME_PREFIX` | `[vars]` | `linky` gives `linky-k4d8vn.example.com` |
 | `id` | `[[kv_namespaces]]` | From `wrangler kv namespace create LINKY` |
-| `pattern` | `[[routes]]` | The fixed hostname the add-on talks to |
+| `API_SUBDOMAIN` | `[vars]` | With `ZONE_NAME`, forms the hostname the add-on talks to |
 
 ### Why some values appear twice
 

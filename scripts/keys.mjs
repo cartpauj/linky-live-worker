@@ -17,7 +17,8 @@
 import { createHash, randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { readFileSync } from 'node:fs';
+
+import { readConfig } from './config.mjs';
 
 const BINDING = 'LINKY';
 
@@ -32,23 +33,19 @@ function fail(message) {
 
 /** Fail early with something actionable rather than a wrangler stack trace. */
 function checkConfig() {
-	let config;
+	const config = readConfig();
 
-	try {
-		config = readFileSync('wrangler.toml', 'utf8');
-	} catch {
+	if (config.missing) {
 		fail('No wrangler.toml here. Run this from the project root, after:\n  cp wrangler.example.toml wrangler.toml');
 	}
 
-	if (/YOUR_KV_NAMESPACE_ID/.test(config)) {
+	if (/YOUR_KV_NAMESPACE_ID/.test(config.text)) {
 		fail('wrangler.toml still has the placeholder KV id. Run:\n  npx wrangler kv namespace create LINKY\nthen paste the printed id into the [[kv_namespaces]] block.');
 	}
 
-	// The route pattern is the hostname the add-on talks to, so a new key can be
-	// handed over complete rather than in two pieces from two places.
-	const route = config.match(/^\s*pattern\s*=\s*"([^"]+)"/m);
-
-	return { serviceHost: route ? route[1].replace(/\/\*$/, '') : null };
+	// Composed from ZONE_NAME and API_SUBDOMAIN, so a new key can be handed over
+	// complete rather than in two pieces from two places.
+	return { serviceHost: config.apiHost };
 }
 
 function wrangler(args, { quiet = false } = {}) {

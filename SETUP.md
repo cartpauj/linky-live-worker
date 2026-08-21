@@ -49,7 +49,7 @@ cp wrangler.example.toml wrangler.toml
 $EDITOR wrangler.toml
 ```
 
-The file has **five placeholders**, numbered `── 1 ──` to `── 5 ──` in the order
+The file has **four placeholders**, numbered `── 1 ──` to `── 4 ──` in the order
 you fill them. Everything else is marked *Fixed* and can be left alone.
 
 Do 1 through 3 first, then run this to get the value for 4:
@@ -72,8 +72,10 @@ npm run check
 does not expose it to the running Worker, which needs its own name to route a
 hostname to itself. `npm run check` verifies the two agree.
 
-The account id is **only entered once**, as `── 1 ──`. TOML has no variable
-references, so `npm run deploy` reads it from there and passes it through.
+Neither the account id nor the domain is entered twice. TOML has no variable
+references, so `npm run deploy` reads `account_id` and `ZONE_NAME` and passes
+them through — the account id as a variable the Worker can read, and the API
+hostname (`API_SUBDOMAIN` + `ZONE_NAME`) as a custom domain.
 
 Generated hostnames look like `linky-k4d8vn.example.com`. `HOSTNAME_PREFIX` is
 yours to change; the flat shape is not — free Universal SSL covers `example.com`
@@ -87,10 +89,13 @@ npx wrangler secret put CF_API_TOKEN
 npm run deploy
 ```
 
-`npm run deploy` is a thin wrapper that reads `account_id` from `wrangler.toml`
-and passes it to the Worker, which cannot see it otherwise. Plain
-`wrangler deploy` also works — the Worker then asks the API token which account it
-belongs to instead.
+`npm run deploy` is a thin wrapper. It reads `account_id` and passes it to the
+Worker, which cannot see it otherwise, and composes the API hostname from
+`API_SUBDOMAIN` and `ZONE_NAME` so the domain is not written out twice. It prints
+both before deploying.
+
+Plain `wrangler deploy` still works, but attaches no custom domain — the Worker
+would then only answer on its `workers.dev` URL.
 
 `wrangler secret put` prompts, so run it in a real terminal. With no terminal
 attached it stores an **empty** secret without complaining, and the first attempt

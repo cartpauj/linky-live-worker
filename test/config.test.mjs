@@ -147,7 +147,7 @@ test('every placeholder is numbered and explained in the template', () => {
 		placeholders.push({ key: match[1], comment: above.join(' ') });
 	});
 
-	assert.equal(placeholders.length, 5, `expected 5 placeholders, found ${placeholders.length}`);
+	assert.equal(placeholders.length, 4, `expected 4 placeholders, found ${placeholders.length}`);
 
 	for (const { key, comment } of placeholders) {
 		assert.match(comment, /──\s*\d\s*──/, `${key} must carry a numbered marker`);
@@ -157,14 +157,14 @@ test('every placeholder is numbered and explained in the template', () => {
 	// Numbered in the order they are filled, so following them top to bottom works.
 	const numbers = placeholders.map((p) => Number(p.comment.match(/──\s*(\d)\s*──/)[1]));
 
-	assert.deepEqual(numbers, [1, 2, 3, 4, 5], 'markers must run 1-5 in file order');
+	assert.deepEqual(numbers, [1, 2, 3, 4], 'markers must run 1-4 in file order');
 });
 
 test('the setup doc points at the numbering rather than restating it', () => {
 	const setup = readFileSync('SETUP.md', 'utf8');
 
 	// Listing every field in both places is how the two drifted apart before.
-	assert.match(setup, /five placeholders/i, 'the doc must say how many there are');
+	assert.match(setup, /four placeholders/i, 'the doc must say how many there are');
 	assert.match(setup, /── 1 ──/, 'and refer to the markers in the file');
 
 	// The one ordering constraint cannot be inferred from the file alone.
@@ -292,8 +292,13 @@ test('the deploy wrapper passes the account id through from account_id', () => {
 	// Extra flags must reach wrangler, or the wrapper becomes a dead end.
 	assert.match(wrapper, /process\.argv\.slice\(2\)/, 'must pass extra flags through');
 
-	// A placeholder must be caught here, not surfaced as a Cloudflare 7003 later.
-	assert.match(wrapper, /\^YOUR_/, 'must reject an unset account_id');
+	// A placeholder must be caught before deploying, not surfaced as a Cloudflare
+	// 7003 later. The check itself lives in the shared config reader.
+	assert.match(wrapper, /config\.unset\(config\.accountId\)/, 'must reject an unset account_id');
+
+	const reader = readFileSync('scripts/config.mjs', 'utf8');
+
+	assert.match(reader, /\^YOUR_/, 'the reader must recognise placeholders');
 });
 
 test('the template does not ask for the account id a second time', () => {
@@ -311,4 +316,31 @@ test('the template does not ask for the account id a second time', () => {
 	const asks = [...template.matchAll(/^\s*account_id\s*=/gm)];
 
 	assert.equal(asks.length, 1, 'account_id must appear exactly once');
+});
+
+test('the API hostname is composed, not written out twice', async () => {
+	const { readConfig } = await import('../scripts/config.mjs');
+	const template = readFileSync('wrangler.example.toml', 'utf8');
+
+	// A route pattern would have spelled the zone a second time, with nothing to
+	// keep the two in step.
+	assert.doesNotMatch(template, /\[\[routes\]\]/, 'there should be no route block to keep in sync');
+	assert.match(template, /^API_SUBDOMAIN\s*=/m, 'the subdomain is configured on its own');
+
+	// And the zone appears exactly once as something to fill in.
+	const zoneAsks = [...template.matchAll(/^\s*ZONE_NAME\s*=/gm)];
+
+	assert.equal(zoneAsks.length, 1, 'ZONE_NAME must appear exactly once');
+
+	assert.equal(typeof readConfig, 'function', 'the composition lives in one shared place');
+});
+
+test('the deploy wrapper attaches the composed domain', () => {
+	const wrapper = readFileSync('scripts/deploy.mjs', 'utf8');
+
+	assert.match(wrapper, /--domains/, 'must attach the API hostname as a custom domain');
+	assert.match(wrapper, /config\.apiHost/, 'built from the config rather than hardcoded');
+
+	// Printed, so a wrong hostname is visible at deploy rather than discovered later.
+	assert.match(wrapper, /Attaching custom domain/, 'must say what it is attaching');
 });

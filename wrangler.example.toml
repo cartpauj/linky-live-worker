@@ -2,7 +2,7 @@
 #
 #   cp wrangler.example.toml wrangler.toml
 #
-# Then replace the five YOUR_… values below, numbered in the order you fill them.
+# Then replace the four YOUR_… values below, numbered in the order you fill them.
 # Check your work with `npm run check`. Full walkthrough in SETUP.md.
 
 
@@ -36,21 +36,17 @@ WORKER_SCRIPT_NAME = "linky-live"
 # Fixed. Gives hostnames like linky-k4d8vn.example.com
 HOSTNAME_PREFIX = "linky"
 
+# Fixed. The add-on talks to <this>.<ZONE_NAME>, so linky-live.example.com.
+# `npm run deploy` attaches it as a custom domain, which is why the zone is not
+# written out a second time here.
+API_SUBDOMAIN = "linky-live"
+
 
 [[kv_namespaces]]
 binding = "LINKY"
 
 # ── 4 ── From `npx wrangler kv namespace create LINKY`, after step 1
 id = "YOUR_KV_NAMESPACE_ID"
-
-
-[[routes]]
-
-# ── 5 ── The hostname the add-on talks to, e.g. linky-live.example.com
-pattern = "linky-live.YOUR_ZONE"
-
-# Fixed. Lets Cloudflare create the DNS record and certificate for it.
-custom_domain = true
 
 
 # CF_API_TOKEN is a secret and never goes in this file:
