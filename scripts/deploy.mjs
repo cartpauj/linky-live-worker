@@ -28,6 +28,11 @@ if (config.unset(config.accountId)) {
 	process.exit(1);
 }
 
+if (config.unset(config.kvId)) {
+	console.error('\nNo KV namespace id in wrangler.toml. Run:\n  npm run kv\n\nwhich creates the namespace and writes its id in for you.\n');
+	process.exit(1);
+}
+
 if (!config.apiHost) {
 	console.error('\nZONE_NAME is not set in wrangler.toml, so the API hostname cannot be built.\nRun `npm run check`.\n');
 	process.exit(1);

@@ -32,7 +32,7 @@ npx wrangler login
 npx wrangler whoami                        # copy your account id
 
 $EDITOR wrangler.toml                      # account id, zone, hostname
-npx wrangler kv namespace create LINKY     # paste the printed id into wrangler.toml
+npm run kv                                 # creates the KV namespace, fills its id in
 
 npx wrangler secret put CF_API_TOKEN       # needs a real terminal — see below
 npm run deploy
@@ -41,7 +41,8 @@ npm run keys issue "Alice"                 # a key for your first user
 ```
 
 The KV step comes after editing, because wrangler reads the account id from
-`wrangler.toml`.
+`wrangler.toml`. `npm run kv` writes the new namespace id straight into the file,
+so it is the one placeholder you never copy by hand.
 
 Two things that are not obvious:
 
@@ -129,7 +130,7 @@ user keys live in KV (see [Adding people](#adding-people)).
 | `ZONE_NAME` | `[vars]` | The domain links are created on, e.g. `example.com` |
 | `CF_ZONE_ID` | `[vars]` | That zone's id, from its Cloudflare overview page |
 | `HOSTNAME_PREFIX` | `[vars]` | `linky` gives `linky-k4d8vn.example.com` |
-| `id` | `[[kv_namespaces]]` | From `wrangler kv namespace create LINKY` |
+| `id` | `[[kv_namespaces]]` | Written for you by `npm run kv` |
 | `API_SUBDOMAIN` | `[vars]` | With `ZONE_NAME`, forms the hostname the add-on talks to |
 
 ### Why some values appear twice
@@ -381,6 +382,7 @@ covers gateway traffic. Neither is close for a team.
 
 ```bash
 node --test test/          # no install needed
+npm run kv                 # creates the KV namespace and writes its id in
 npm run deploy             # passes account_id through to the Worker
 npx wrangler tail          # live logs
 ```

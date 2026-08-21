@@ -34,6 +34,9 @@ export function readConfig() {
 		zone,
 		subdomain,
 
+		/* The KV namespace id, which `npm run kv` fills in. */
+		kvId: value('id'),
+
 		/*
 		 * The hostname the add-on talks to, composed rather than written out.
 		 * TOML cannot reference ZONE_NAME, so spelling the zone again in a route

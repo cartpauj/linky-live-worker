@@ -2,7 +2,8 @@
 #
 #   cp wrangler.example.toml wrangler.toml
 #
-# Then replace the four YOUR_… values below, numbered in the order you fill them.
+# Then replace the YOUR_… values below, numbered in the order you fill them. The
+# last one, the KV namespace id, is filled in for you by `npm run kv`.
 # Check your work with `npm run check`. Full walkthrough in SETUP.md.
 
 
@@ -45,7 +46,8 @@ API_SUBDOMAIN = "linky-live"
 [[kv_namespaces]]
 binding = "LINKY"
 
-# ── 4 ── From `npx wrangler kv namespace create LINKY`, after step 1
+# ── 4 ── Filled in for you: run `npm run kv`, after step 1. It creates the
+# namespace and writes the id here, so there is nothing to copy across.
 id = "YOUR_KV_NAMESPACE_ID"
 
 

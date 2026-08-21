@@ -50,17 +50,25 @@ $EDITOR wrangler.toml
 ```
 
 The file has **four placeholders**, numbered `── 1 ──` to `── 4 ──` in the order
-you fill them. Everything else is marked *Fixed* and can be left alone.
+they are filled. You type the first three; the fourth is filled in for you.
+Everything else is marked *Fixed* and can be left alone.
 
-Do 1 through 3 first, then run this to get the value for 4:
+So do 1 through 3 by hand, then:
 
 ```bash
-npx wrangler kv namespace create LINKY
+npm run kv
 ```
 
+That creates the KV namespace and writes its id into `wrangler.toml` as
+placeholder 4, so there is nothing to copy across. Running it again is safe: an
+id already in the file is left alone, and an existing namespace is reused rather
+than a second one created.
+
 It has to come after step 1, because wrangler reads the account id from
-`wrangler.toml`. With the placeholder still there it fails with
-`Could not route to /client/v4/accounts/YOUR_ACCOUNT_ID/... [code: 7003]`.
+`wrangler.toml` to know which account to create the namespace in. With the
+placeholder still there, plain wrangler fails with `Could not route to
+/client/v4/accounts/YOUR_ACCOUNT_ID/... [code: 7003]`, which does not point at
+the cause — `npm run kv` checks first and says which field to set.
 
 Then check nothing is left:
 

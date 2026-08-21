@@ -18,7 +18,7 @@ const REQUIRED = [
 	{ key: 'account_id', where: 'top level', what: 'Your Cloudflare account id — `wrangler whoami`' },
 	{ key: 'ZONE_NAME', where: '[vars]', what: 'The domain links are created on, e.g. example.com' },
 	{ key: 'CF_ZONE_ID', where: '[vars]', what: 'That zone\'s id, from its Cloudflare overview page' },
-	{ key: 'id', where: '[[kv_namespaces]]', what: 'From `wrangler kv namespace create LINKY`' },
+	{ key: 'id', where: '[[kv_namespaces]]', what: 'Run `npm run kv` — it creates the namespace and writes the id in' },
 ];
 
 /** Fields with working defaults, checked only for internal consistency. */
