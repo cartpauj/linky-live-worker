@@ -178,10 +178,17 @@ terminal, so nothing needs a deploy and no credential goes in a config file.
 npm run keys issue "Alice"          # generates a key and prints it once
 npm run keys list                   # everyone, with a key fragment each
 npm run keys search alice           # same, filtered
-npm run keys revoke Qw8zT1         # block, keeping the record
+npm run keys sites                  # every address, grouped by owner
+npm run keys sites Qw8zT1          # just theirs
+npm run keys roll Qw8zT1           # replace a lost key, addresses intact
+npm run keys revoke Qw8zT1         # stop their addresses answering
 npm run keys restore Qw8zT1        # undo a revoke
-npm run keys remove Qw8zT1         # delete the record
+npm run keys remove Qw8zT1         # delete them and their addresses
 ```
+
+`sites` is the inventory: every address the service has handed out, whose key
+owns it, whether its link is currently on, and any bypass paths. Reading it needs
+nothing but wrangler, since it comes from KV.
 
 You supply a unique name; the key is generated and printed alongside your service
 hostname, so both halves can be sent in one message. Listings show names, status,
@@ -197,6 +204,30 @@ adds or removes a key: see [`SETUP.md`](SETUP.md#several-people-managing-it).
 Only a SHA-256 of each key is stored, so a key can be verified but never read
 back. Any number of admins can manage the same team — see
 [`SETUP.md`](SETUP.md#7-add-people).
+
+### Taking access away
+
+Three commands, for three different situations.
+
+| | What happens |
+| --- | --- |
+| `roll` | A new key is issued and the person's addresses move to it. Their old key stops working; every URL they registered keeps working |
+| `revoke` | Their addresses stop answering — `403` on every path, bypasses included — and nothing new can be provisioned. Hostnames stay reserved, and `restore` brings both back |
+| `remove` | The person and their addresses are deleted: tunnel, DNS record, Worker route and KV entries. Every URL they registered stops resolving |
+
+`revoke` reaches traffic that is already running because the gateway reads the
+owner's status from the hostname record, which `revoke` and `restore` rewrite. It
+costs no extra lookup per request.
+
+`remove` needs the Cloudflare API token, since deleting a tunnel, a DNS record
+and a route are all account operations:
+
+```bash
+CF_API_TOKEN=your-token npm run keys remove Qw8zT1
+```
+
+It refuses rather than deleting the key alone, which would leave those resources
+on the zone with nothing able to manage them.
 
 ## Worker API
 

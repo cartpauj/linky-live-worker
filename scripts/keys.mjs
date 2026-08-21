@@ -9,8 +9,10 @@
  *
  *   node scripts/keys.mjs issue "Alice"
  *   node scripts/keys.mjs list
+ *   node scripts/keys.mjs sites
  *   node scripts/keys.mjs revoke "Alice"
  *   node scripts/keys.mjs restore "Alice"
+ *   node scripts/keys.mjs roll "Alice"
  *   node scripts/keys.mjs remove "Alice"
  */
 
@@ -18,6 +20,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
+import { deleteDnsRecordsByName, deleteTunnel, deleteWorkerRoute } from '../src/cf.js';
 import { readConfig } from './config.mjs';
 
 const BINDING = 'LINKY';
@@ -80,6 +83,39 @@ const kvGet = (key) => {
 
 const kvDelete = (key) =>
 	wrangler(['kv', 'key', 'delete', key, `--binding=${BINDING}`, '--remote', '--force']);
+
+/**
+ * Every address a person holds.
+ *
+ * Site records are keyed `site:<keyHash>:<siteId>`, so one prefixed list gives
+ * everything one key owns without reading anyone else's.
+ */
+function sitesOf(hash) {
+	const raw = wrangler(['kv', 'key', 'list', `--binding=${BINDING}`, `--prefix=site:${hash}:`, '--remote']);
+
+	return JSON.parse(raw || '[]')
+		.map(({ name }) => ({ kvKey: name, ...(kvGet(name) || {}) }))
+		.sort((a, b) => String(a.siteName).localeCompare(String(b.siteName)));
+}
+
+/** Print one person's addresses under their name. */
+function showSites(person, sites) {
+	console.log(`\n  ${person.name}${person.active === false ? ' (revoked)' : ''}`);
+
+	if (!sites.length) {
+		console.log('    no addresses');
+
+		return;
+	}
+
+	for (const site of sites) {
+		const state = site.enabled ? 'on ' : 'off';
+		const when = site.createdAt ? site.createdAt.slice(0, 10) : '';
+		const bypass = (site.bypassPaths || []).join(' ');
+
+		console.log(`    ${state}  ${String(site.url || site.hostname).padEnd(38)} ${String(site.siteName || '').padEnd(20)} ${when}  ${bypass}`);
+	}
+}
 
 function everyone() {
 	const raw = wrangler(['kv', 'key', 'list', `--binding=${BINDING}`, '--prefix=teamkey:', '--remote']);
@@ -270,12 +306,23 @@ Manage who may use the Linky Live add-on.
   node scripts/keys.mjs issue "Alice"       Generate a key and print it once
   node scripts/keys.mjs list                Show everyone, with a fragment each
   node scripts/keys.mjs search alice        Same, filtered
+  node scripts/keys.mjs sites               Every address, grouped by owner
+  node scripts/keys.mjs sites Qw8zT1        Just theirs
+  node scripts/keys.mjs roll Qw8zT1         Replace a lost key, keeping addresses
   node scripts/keys.mjs revoke Qw8zT1      Block them, keeping the record
   node scripts/keys.mjs restore Qw8zT1     Undo a revoke
   node scripts/keys.mjs remove Qw8zT1      Delete the record entirely
 
 revoke, restore and remove confirm first, naming who they matched. Add --yes to
 skip that.
+
+remove also deletes that person's addresses — tunnel, DNS record, Worker route
+and KV entries — because nothing can manage them once their key is gone. It needs
+the Cloudflare API token for that:
+
+  CF_API_TOKEN=your-token npm run keys remove Qw8zT1
+
+Use revoke to block someone while keeping their addresses reserved.
 
 The fragment shown by 'list' is what identifies a key — it never changes. A name
 works too, and a row number is accepted for quick use:
@@ -298,6 +345,93 @@ if (!command || command === 'help' || command === '--help') {
 }
 
 const { serviceHost } = checkConfig();
+
+/**
+ * The Cloudflare credentials needed to delete somebody's addresses.
+ *
+ * The token is powerful — tunnel, DNS and route write — so it is read from the
+ * environment for the one command that needs it rather than kept on disk beside
+ * the config. The zone and account come from wrangler.toml, where they already
+ * are.
+ */
+function cfEnv() {
+	const token = process.env.CF_API_TOKEN;
+
+	if (!token) {
+		return null;
+	}
+
+	const config = readConfig();
+
+	return {
+		CF_API_TOKEN: token,
+		CF_ZONE_ID: config.value('CF_ZONE_ID'),
+		CF_ACCOUNT_ID: config.accountId,
+	};
+}
+
+/**
+ * Delete one address: its Cloudflare resources, then the two KV entries.
+ *
+ * The same three resources the Worker creates when it provisions, torn down in
+ * the same order. A resource already gone is not an error — the point is to
+ * leave nothing behind, not to insist it was all still there.
+ */
+async function tearDownSite(env, site) {
+	const problems = [];
+
+	for (const [label, fn] of [
+		['Worker route', () => deleteWorkerRoute(env, site.routeId)],
+		['DNS record', () => deleteDnsRecordsByName(env, site.hostname)],
+		['tunnel', () => deleteTunnel(env, site.tunnelId)],
+	]) {
+		try {
+			await fn();
+		} catch (err) {
+			problems.push(`${site.hostname} ${label}: ${err.message}`);
+		}
+	}
+
+	kvDelete(`host:${site.hostname}`);
+	kvDelete(site.kvKey);
+
+	return problems;
+}
+
+/**
+ * Generate a key, store its hash under `name`, and print both halves.
+ *
+ * 32 random bytes, url-safe so the key survives chat, email and password
+ * managers. `hint` is its last six characters: the key itself is never stored,
+ * so without a fragment `list` cannot answer "which of these is mine?" when one
+ * person holds keys on several machines. Six characters identify a key among a
+ * handful without narrowing a brute-force search of 32 random bytes usefully.
+ *
+ * @returns {string} the key's SHA-256, for callers that need to move records to it
+ */
+function mintKey(name, extra = {}) {
+	const key = `linky_${randomBytes(32).toString('base64url')}`;
+	const hash = sha256(key);
+
+	kvPut(`teamkey:${hash}`, JSON.stringify({
+		name,
+		active: true,
+		hint: key.slice(-6),
+		issuedAt: new Date().toISOString(),
+		...extra,
+	}));
+
+	// Both halves together: the add-on needs each on first run, and hunting for
+	// the hostname separately is how people end up guessing it.
+	console.log(`\nKey for ${name} — send both lines:\n`);
+	console.log(`  Service:  ${serviceHost || '(not set in wrangler.toml)'}`);
+	console.log(`  Key:      ${key}\n`);
+	console.log('They enter these in Local, in the Linky Live tab of any site.\n');
+	console.log('Only a hash is stored, so this key cannot be shown again. If it is');
+	console.log(`lost, roll it:\n  npm run keys roll "${name}"\n`);
+
+	return hash;
+}
 
 async function main() {
 		switch (command) {
@@ -328,34 +462,7 @@ async function main() {
 				);
 			}
 
-			// 32 random bytes, url-safe so it survives chat, email and password managers.
-			const key = `linky_${randomBytes(32).toString('base64url')}`;
-
-			/*
-			 * `hint` is the last six characters of the key.
-			 *
-			 * The key itself is never stored — only its hash — so there is no way to
-			 * show anyone their key again; a lost key is rolled, not recovered. But
-			 * without some fragment, `list` cannot answer "which of these is mine?",
-			 * which matters when one person holds keys on several machines. Six
-			 * characters identify a key among a handful without narrowing a
-			 * brute-force search of 32 random bytes to any useful degree.
-			 */
-			kvPut(`teamkey:${sha256(key)}`, JSON.stringify({
-				name: arg,
-				active: true,
-				hint: key.slice(-6),
-				issuedAt: new Date().toISOString(),
-			}));
-
-			// Both halves together: the add-on needs each on first run, and hunting
-			// for the hostname separately is how people end up guessing it.
-			console.log(`\nKey for ${arg} — send both lines:\n`);
-			console.log(`  Service:  ${serviceHost || '(not set in wrangler.toml)'}`);
-			console.log(`  Key:      ${key}\n`);
-			console.log('They enter these in Local, in the Linky Live tab of any site.\n');
-			console.log('Only a hash is stored, so this key cannot be shown again. If it is');
-			console.log(`lost, roll it:\n  npm run keys remove "${arg}" && npm run keys issue "${arg}"\n`);
+			mintKey(arg);
 			break;
 		}
 
@@ -388,6 +495,64 @@ async function main() {
 			break;
 		}
 
+		case 'sites': {
+			const all = everyone();
+
+			if (!all.length) {
+				fail('Nobody has a key yet.\n  npm run keys issue "Alice"');
+			}
+
+			// Without an argument this is the inventory: every address the service
+			// has handed out, and who to ask about each one.
+			const people = arg ? [resolve(positional).person] : all;
+
+			for (const person of people) {
+				showSites(person, sitesOf(person.hash));
+			}
+
+			console.log('');
+			break;
+		}
+
+		case 'roll': {
+			if (!arg) {
+				fail('Whose key?\n  node scripts/keys.mjs roll "Alice"');
+			}
+
+			const { person, verified } = resolve(positional);
+
+			if (!verified && !(await confirm('Issue a new key for', person))) {
+				break;
+			}
+
+			const sites = sitesOf(person.hash);
+
+			/*
+			 * Site records are keyed by the hash of the owner's key, so a new key has
+			 * to take the old one's records with it. Otherwise the addresses stay in
+			 * KV under a hash nothing holds any more: still serving, still costing a
+			 * tunnel, and invisible to their owner.
+			 */
+			const hash = mintKey(person.name, { rolledAt: new Date().toISOString() });
+
+			for (const site of sites) {
+				kvPut(`site:${hash}:${site.siteId}`, JSON.stringify({ ...site, kvKey: undefined, keyHash: hash }));
+				kvDelete(site.kvKey);
+
+				const host = kvGet(`host:${site.hostname}`);
+
+				if (host) {
+					kvPut(`host:${site.hostname}`, JSON.stringify({ ...host, keyHash: hash }));
+				}
+			}
+
+			kvDelete(`teamkey:${person.hash}`);
+
+			console.log(`Their ${sites.length} address(es) carried over, so nothing they registered breaks.`);
+			console.log('The old key stops working immediately.\n');
+			break;
+		}
+
 		case 'revoke':
 		case 'restore': {
 			if (!arg) {
@@ -414,11 +579,30 @@ async function main() {
 				[active ? 'restoredAt' : 'revokedAt']: new Date().toISOString(),
 			}));
 
+			/*
+			 * The gateway reads this flag from the hostname record, so flipping it is
+			 * what makes revoking reach traffic that is already running rather than
+			 * only the next provision.
+			 */
+			const touched = sitesOf(person.hash);
+
+			for (const site of touched) {
+				const host = kvGet(`host:${site.hostname}`);
+
+				if (host) {
+					kvPut(`host:${site.hostname}`, JSON.stringify({ ...host, ownerActive: active }));
+				}
+			}
+
 			console.log(`\n${active ? 'Restored' : 'Revoked'} ${person.name}.`);
 
+			if (touched.length) {
+				console.log(`${active ? 'Serving again' : 'Stopped serving'}: ${touched.length} address(es).`);
+			}
+
 			if (!active) {
-				console.log('They cannot provision anything from now on. Links already running keep');
-				console.log('running until stopped, so release any hostnames you want reclaimed.');
+				console.log('Their addresses stay reserved and stop answering, and they cannot');
+				console.log('provision anything new. `restore` puts both back.');
 			}
 
 			console.log('');
@@ -431,16 +615,50 @@ async function main() {
 			}
 
 			const { person, verified } = resolve(positional);
+			const sites = sitesOf(person.hash);
+			const env = cfEnv();
+
+			/*
+			 * Their addresses go with their key. Nothing can manage a site whose
+			 * owner's key is gone, so leaving them would strand a tunnel, a DNS
+			 * record and a Worker route on the zone for every site they ever had.
+			 */
+			if (sites.length && !env) {
+				fail(
+					`${person.name} holds ${sites.length} address(es), which are deleted along with\n`
+					+ 'the key. That needs the Cloudflare API token:\n\n'
+					+ `  CF_API_TOKEN=your-token npm run keys remove ${person.hint ? person.hint : '<who>'}\n\n`
+					+ 'To block them but keep the addresses reserved:\n'
+					+ `  npm run keys revoke ${person.hint ? person.hint : '<who>'}\n\n`
+					+ 'What they hold:'
+					+ `\n${sites.map((s) => `  ${s.url || s.hostname}`).join('\n')}`,
+				);
+			}
 
 			if (!verified && !(await confirm('Permanently remove', person))) {
 				break;
 			}
 
+			const problems = [];
+
+			for (const site of sites) {
+				console.log(`\nDeleting ${site.url || site.hostname}…`);
+				problems.push(...(await tearDownSite(env, site)));
+			}
+
 			kvDelete(`teamkey:${person.hash}`);
 
-			console.log(`\nRemoved ${person.name}.`);
-			console.log('Their site records remain in KV. Use `revoke` instead if you might');
-			console.log('want to restore access later.\n');
+			console.log(`\nRemoved ${person.name}${sites.length ? ` and ${sites.length} address(es)` : ''}.`);
+
+			if (problems.length) {
+				console.log('\nSome resources could not be deleted, so check the dashboard:');
+
+				for (const problem of problems) {
+					console.log(`  ${problem}`);
+				}
+			}
+
+			console.log('\nUse `revoke` instead when you might want to restore access later.\n');
 			break;
 		}
 

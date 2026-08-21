@@ -403,3 +403,41 @@ test('successful responses on a bypassed path are untouched', async () => {
 		assert.match(await res.text(), /real listener output/, `status ${status} body must survive`);
 	}
 });
+
+test('a revoked owner stops serving, password or not', async () => {
+	stubFetch();
+
+	const env = makeEnv({ [`host:${HOST}`]: { ...hostRecord, ownerActive: false } });
+
+	// Revoking is how access is taken away, so it has to reach traffic that is
+	// already running — not only the next provision.
+	for (const [label, request] of [
+		['anonymous', new Request(`https://${HOST}/`)],
+		['with the right password', new Request(`https://${HOST}/`, {
+			headers: { Authorization: basic(hostRecord.authUser, hostRecord.authPass) },
+		})],
+		['a bypassed path', new Request(`https://${HOST}/mepr/notify`)],
+		['a static asset', new Request(`https://${HOST}/wp-content/themes/x/style.css`)],
+	]) {
+		const res = await worker.fetch(request, env);
+
+		assert.equal(res.status, 403, `${label} must be refused`);
+
+		// 401 would put a password prompt in front of something no password fixes.
+		assert.equal(res.headers.get('WWW-Authenticate'), null, `${label}: no auth challenge`);
+	}
+});
+
+test('an owner with no flag on the record still serves', async () => {
+	const calls = stubFetch();
+
+	// Absence means active. The flag is written on every provision, so a record
+	// without one predates nothing that should be treated as revoked.
+	const res = await worker.fetch(
+		new Request(`https://${HOST}/mepr/notify`),
+		makeEnv({ [`host:${HOST}`]: hostRecord }),
+	);
+
+	assert.equal(res.status, 200);
+	assert.equal(calls.length, 1, 'the request reached the origin');
+});

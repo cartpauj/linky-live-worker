@@ -92,6 +92,14 @@ async function syncHostRecord(env, record) {
 			authPass: record.authPass,
 			bypassPaths: record.bypassPaths,
 			publicAssets: record.publicAssets !== false,
+
+			/*
+			 * Whether the owner's key is still good, mirrored so the gateway can
+			 * refuse a revoked owner's traffic without a second KV read on every
+			 * request. Only an active key reaches this code, so writing it here is
+			 * always writing the truth; `npm run keys revoke` flips it the other way.
+			 */
+			ownerActive: true,
 		}),
 	);
 }
@@ -433,6 +441,20 @@ function checkBasicAuth(request, user, pass) {
 }
 
 async function handleGateway(request, env, url, record) {
+	/*
+	 * A revoked owner's addresses stop serving, bypass paths included.
+	 *
+	 * Revoking is how access is taken away, so it has to reach traffic already
+	 * running and not just the next provision. 403 rather than 401: no password
+	 * fixes this, and a browser prompt would suggest one might.
+	 */
+	if (record.ownerActive === false) {
+		return new Response('This address is disabled.\n', {
+			status: 403,
+			headers: { 'Cache-Control': 'no-store' },
+		});
+	}
+
 	/*
 	 * Static assets are served without a password when the site allows it.
 	 *

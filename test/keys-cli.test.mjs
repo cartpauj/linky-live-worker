@@ -153,5 +153,41 @@ test('issuing hands over both halves at once', () => {
 
 test('a lost key is rolled, not recovered', () => {
 	assert.match(source, /roll it/, 'must tell the operator what to do instead');
-	assert.match(source, /remove "\$\{arg\}" && npm run keys issue/, 'with the exact commands');
+	assert.match(source, /npm run keys roll/, 'with the exact command');
+});
+
+test('rolling a key takes the addresses with it', () => {
+	// Site records are keyed by the hash of the owner's key. A new key that left
+	// them behind would strand every address under a hash nobody holds: still
+	// serving, still costing a tunnel, invisible to its owner.
+	const roll = source.slice(source.indexOf("case 'roll'"), source.indexOf("case 'revoke'"));
+
+	assert.match(roll, /kvPut\(`site:\$\{hash\}:\$\{site\.siteId\}`/, 'must re-key each site record');
+	assert.match(roll, /kvDelete\(site\.kvKey\)/, 'and drop the record under the old hash');
+	assert.match(roll, /keyHash: hash/, 'and repoint the hostname record at the new key');
+	assert.match(roll, /kvDelete\(`teamkey:\$\{person\.hash\}`\)/, 'the old key must stop working');
+});
+
+test('remove deletes what it orphans; revoke keeps it', () => {
+	const remove = source.slice(source.indexOf("case 'remove'"), source.indexOf('default:'));
+	const revoke = source.slice(source.indexOf("case 'revoke'"), source.indexOf("case 'remove'"));
+
+	// Nothing can manage a site whose owner's key is gone, so removal has to take
+	// the Cloudflare resources with it or leave a tunnel, a DNS record and a route
+	// on the zone for every site that person ever had.
+	assert.match(remove, /tearDownSite/, 'remove must tear down their addresses');
+	assert.match(remove, /CF_API_TOKEN/, 'and say what it needs to do that');
+
+	// Revoking is reversible, so it must not delete anything.
+	assert.doesNotMatch(revoke, /kvDelete/, 'revoke must delete nothing');
+	assert.match(revoke, /ownerActive: active/, 'it flips the flag the gateway reads');
+});
+
+test('teardown covers every resource provisioning creates', () => {
+	// A resource the Worker creates but this never deletes accumulates silently.
+	for (const call of ['deleteWorkerRoute', 'deleteDnsRecordsByName', 'deleteTunnel']) {
+		assert.match(source, new RegExp(call), `teardown must call ${call}`);
+	}
+
+	assert.match(source, /kvDelete\(`host:\$\{site\.hostname\}`\)/, 'and clear the gateway record');
 });

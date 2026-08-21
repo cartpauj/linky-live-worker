@@ -168,9 +168,13 @@ npm run keys issue "Alice"          # generates a key and prints it once
 npm run keys list                   # everyone, with a key fragment each
 npm run keys search alice           # same, filtered
 
-npm run keys revoke Qw8zT1         # block, keeping the record
+npm run keys sites                  # every address, grouped by owner
+npm run keys sites Qw8zT1          # just theirs
+
+npm run keys roll Qw8zT1           # replace a lost key, addresses intact
+npm run keys revoke Qw8zT1         # stop their addresses answering
 npm run keys restore Qw8zT1        # undo a revoke
-npm run keys remove Qw8zT1         # delete the record
+npm run keys remove Qw8zT1         # delete them and their addresses
 ```
 
 The fragment shown in `list` is what identifies someone. It never changes, so it
@@ -198,8 +202,43 @@ keys on several machines, and how you refer to a key in the commands above. The
 key itself is never stored, so a lost key is rolled:
 
 ```bash
-npm run keys remove "Alice" && npm run keys issue "Alice"
+npm run keys roll "Alice"
 ```
+
+`roll` prints a new key and moves that person's addresses onto it. Site records
+are keyed by the hash of their owner's key, so this is what keeps every URL they
+registered working — a new key on its own would leave the addresses under a hash
+nobody holds.
+
+### Seeing what is out there
+
+```bash
+npm run keys sites                  # everything, grouped by owner
+npm run keys sites Qw8zT1          # one person's
+```
+
+Each row is one address: whether its link is on, the URL, the Local site it
+belongs to, when it was allocated, and any bypass paths. This reads KV only, so
+it needs no Cloudflare token.
+
+### Revoking and removing
+
+`revoke` stops that person's addresses answering — `403` on every path, bypass
+paths included — and blocks anything new being provisioned. The hostnames stay
+reserved, and `restore` puts both back. It reaches links that are already running:
+the gateway reads the owner's status from the hostname record, and revoking
+rewrites it.
+
+`remove` deletes the person and their addresses outright — tunnel, DNS record,
+Worker route, KV entries — so every URL they registered stops resolving. Deleting
+those is an account operation, so it needs the API token:
+
+```bash
+CF_API_TOKEN=your-token npm run keys remove Qw8zT1
+```
+
+Without it, `remove` refuses for anyone who holds an address rather than deleting
+the key alone and stranding the resources.
 
 `revoke`, `restore` and `remove` accept, safest first:
 
@@ -213,8 +252,9 @@ npm run keys remove "Alice" && npm run keys issue "Alice"
 Row numbers exist for quick one-off use and are checked or confirmed, never acted
 on blindly. Add `--yes` to skip a prompt.
 
-Revoking blocks new provisioning at once. Links already running keep running
-until stopped, so release any hostnames you also want reclaimed.
+Revoking takes effect at once, on running links as well as on new provisioning.
+The tunnel on that person's machine stays up; the gateway in front of it refuses
+every request, so nothing reaches the site.
 
 ### Several people managing it
 

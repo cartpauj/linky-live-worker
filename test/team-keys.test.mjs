@@ -105,3 +105,36 @@ test('the deployed version is reported to authenticated callers only', async () 
 	const denied = await (await status(env, 'nope')).json();
 	assert.equal(denied.version, undefined);
 });
+
+test('provisioning marks the hostname record as owned by an active key', async () => {
+	const hash = await sha256Hex('linky_alicekey');
+	const env = baseEnv({ seed: { [`teamkey:${hash}`]: { name: 'Alice', active: true } } });
+
+	// Provisioning talks to Cloudflare four times; the ids are all this test needs
+	// back, so one canned success answers every call.
+	globalThis.fetch = async () =>
+		new Response(JSON.stringify({ success: true, errors: [], result: { id: 'res-1', token: 'tok' } }), {
+			status: 200,
+			headers: { 'Content-Type': 'application/json' },
+		});
+
+	const res = await worker.fetch(
+		new Request('https://linky-live.example.com/v1/provision', {
+			method: 'POST',
+			headers: { Authorization: 'Bearer linky_alicekey', 'Content-Type': 'application/json' },
+			body: JSON.stringify({ siteId: 'site-1', siteName: 'my-site', port: 10063 }),
+		}),
+		env,
+	);
+
+	const body = await res.json();
+
+	assert.equal(body.ok, true, JSON.stringify(body));
+
+	// The gateway reads this rather than looking the owner up on every request, so
+	// it has to be written whenever a hostname record is. Only an active key can
+	// get this far, which is why writing true here is always writing the truth.
+	const host = await env.LINKY.get(`host:${body.site.hostname}`, 'json');
+
+	assert.equal(host.ownerActive, true);
+});
