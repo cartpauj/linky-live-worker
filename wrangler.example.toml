@@ -25,9 +25,9 @@ ZONE_NAME = "YOUR_ZONE"
 # ── 3 ── That zone's id, from its Cloudflare overview page
 CF_ZONE_ID = "YOUR_ZONE_ID"
 
-# Optional. The Worker cannot see `account_id` above, so it asks the API token
-# which account it belongs to and remembers the answer. Only set this if the
-# token can see more than one account, which it will tell you.
+# Not set here on purpose. The Worker cannot see `account_id` above, and TOML has
+# no way to reference it, so `npm run deploy` reads it from there and passes it in.
+# Set it only if you deploy with plain `wrangler deploy` and want to skip that.
 # CF_ACCOUNT_ID = ""
 
 # Fixed. Must match `name` above; the Worker cannot see that either.

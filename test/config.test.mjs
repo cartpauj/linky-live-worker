@@ -279,3 +279,36 @@ test('a token that cannot list accounts still explains the one-line fix', async 
 		},
 	);
 });
+
+test('the deploy wrapper passes the account id through from account_id', () => {
+	const wrapper = readFileSync('scripts/deploy.mjs', 'utf8');
+
+	// TOML has no variable references and wrangler does not expose account_id to
+	// the running Worker, so this is what keeps it entered once.
+	assert.match(wrapper, /account_id/, 'must read account_id from wrangler.toml');
+	assert.match(wrapper, /--var/, 'and pass it as a wrangler var');
+	assert.match(wrapper, /CF_ACCOUNT_ID:/, 'under the name the Worker reads');
+
+	// Extra flags must reach wrangler, or the wrapper becomes a dead end.
+	assert.match(wrapper, /process\.argv\.slice\(2\)/, 'must pass extra flags through');
+
+	// A placeholder must be caught here, not surfaced as a Cloudflare 7003 later.
+	assert.match(wrapper, /\^YOUR_/, 'must reject an unset account_id');
+});
+
+test('the template does not ask for the account id a second time', () => {
+	const template = readFileSync('wrangler.example.toml', 'utf8');
+
+	// It may appear as a commented-out override, but never as something to fill in.
+	const active = template
+		.split('\n')
+		.filter((l) => !l.trim().startsWith('#'))
+		.join('\n');
+
+	assert.doesNotMatch(active, /CF_ACCOUNT_ID/, 'CF_ACCOUNT_ID must not be an active field');
+
+	// And account_id itself is still asked for, exactly once.
+	const asks = [...template.matchAll(/^\s*account_id\s*=/gm)];
+
+	assert.equal(asks.length, 1, 'account_id must appear exactly once');
+});

@@ -72,9 +72,8 @@ npm run check
 does not expose it to the running Worker, which needs its own name to route a
 hostname to itself. `npm run check` verifies the two agree.
 
-The account id is **not** asked for twice. The Worker asks its API token which
-account it belongs to and remembers the answer, so `CF_ACCOUNT_ID` only needs
-setting if that token can see several accounts — and it will say so if it does.
+The account id is **only entered once**, as `── 1 ──`. TOML has no variable
+references, so `npm run deploy` reads it from there and passes it through.
 
 Generated hostnames look like `linky-k4d8vn.example.com`. `HOSTNAME_PREFIX` is
 yours to change; the flat shape is not — free Universal SSL covers `example.com`
@@ -85,8 +84,13 @@ would have no valid certificate.
 
 ```bash
 npx wrangler secret put CF_API_TOKEN
-npx wrangler deploy
+npm run deploy
 ```
+
+`npm run deploy` is a thin wrapper that reads `account_id` from `wrangler.toml`
+and passes it to the Worker, which cannot see it otherwise. Plain
+`wrangler deploy` also works — the Worker then asks the API token which account it
+belongs to instead.
 
 `wrangler secret put` prompts, so run it in a real terminal. With no terminal
 attached it stores an **empty** secret without complaining, and the first attempt

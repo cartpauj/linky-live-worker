@@ -35,7 +35,7 @@ $EDITOR wrangler.toml                      # account id, zone, hostname
 npx wrangler kv namespace create LINKY     # paste the printed id into wrangler.toml
 
 npx wrangler secret put CF_API_TOKEN       # needs a real terminal — see below
-npx wrangler deploy
+npm run deploy
 
 npm run keys issue "Alice"                 # a key for your first user
 ```
@@ -381,7 +381,7 @@ covers gateway traffic. Neither is close for a team.
 
 ```bash
 node --test test/          # no install needed
-npx wrangler deploy
+npm run deploy             # passes account_id through to the Worker
 npx wrangler tail          # live logs
 ```
 
