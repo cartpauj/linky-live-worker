@@ -341,10 +341,13 @@ covers gateway traffic. Neither is close for a team.
 ## Development
 
 ```bash
-node --test test/          # no dependencies needed
+node --test test/          # no install needed
 npx wrangler deploy
 npx wrangler tail          # live logs
 ```
+
+`npm install` is optional: the Worker has no runtime dependencies and wrangler is
+the only package, which `npx` fetches on demand. Installing pins it locally.
 
 A deploy applies to everyone at once, so verify against a real site before
 considering a change done.

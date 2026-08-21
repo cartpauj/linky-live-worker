@@ -69,10 +69,17 @@ end up in the repo.
 
 ```bash
 cp wrangler.example.toml wrangler.toml
-npm install
 
 # Prints an id — paste it into the [[kv_namespaces]] block
 npx wrangler kv namespace create LINKY
+```
+
+`npm install` is optional. The Worker has no runtime dependencies — wrangler is
+the only package, and `npx` fetches it on demand. Installing pins it locally so
+deploys are faster and cannot pick up a new major version unexpectedly:
+
+```bash
+npm install     # optional
 ```
 
 Now edit `wrangler.toml`. Every field is commented in place; these are the ones
