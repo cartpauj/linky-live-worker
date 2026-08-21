@@ -29,15 +29,19 @@ cd linky-live-worker
 
 cp wrangler.example.toml wrangler.toml
 npx wrangler login
+npx wrangler whoami                        # copy your account id
 
-npx wrangler kv namespace create LINKY     # paste the printed id into wrangler.toml
 $EDITOR wrangler.toml                      # account id, zone, hostname
+npx wrangler kv namespace create LINKY     # paste the printed id into wrangler.toml
 
 npx wrangler secret put CF_API_TOKEN       # needs a real terminal — see below
 npx wrangler deploy
 
 npm run keys issue "Alice"                 # a key for your first user
 ```
+
+The KV step comes after editing, because wrangler reads the account id from
+`wrangler.toml`.
 
 Two things that are not obvious:
 

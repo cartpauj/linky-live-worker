@@ -46,7 +46,6 @@ records. If the zone runs production services, consider a dedicated domain.
 
 ```bash
 cp wrangler.example.toml wrangler.toml
-npx wrangler kv namespace create LINKY    # prints an id
 $EDITOR wrangler.toml
 ```
 
@@ -61,8 +60,19 @@ Every field is commented in place; these are the ones to change:
 | `ZONE_NAME` | The domain, e.g. `example.com` |
 | `CF_ZONE_ID` | That zone's id |
 | `HOSTNAME_PREFIX` | Prefix for generated hostnames, e.g. `linky` |
-| `[[kv_namespaces]]` `id` | The id just printed |
+| `[[kv_namespaces]]` `id` | Filled in by the next step |
 | `[[routes]]` `pattern` | The API hostname, e.g. `linky-live.example.com` |
+
+Now create the KV namespace and paste the id it prints into the
+`[[kv_namespaces]]` block:
+
+```bash
+npx wrangler kv namespace create LINKY
+```
+
+This has to come **after** `account_id` is set, because wrangler reads the
+account from `wrangler.toml`. With the placeholder still in place it fails with
+`Could not route to /client/v4/accounts/YOUR_ACCOUNT_ID/... [code: 7003]`.
 
 Hostnames come out as `linky-k4d8vn.example.com`. The prefix is yours to choose;
 the flat shape is not — free Universal SSL covers `example.com` and
