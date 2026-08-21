@@ -128,7 +128,7 @@ hostname**, so you can send someone everything they need in one message:
 Key for Alice — send both lines:
 
   Service:  linky-live.example.com
-  Key:      linky_MakRAFXQb0bHGdcQRFVsDYA2MzDdy1HKecLVRsWScK0
+  Key:      linky_EXAMPLE_KEY_SHOWN_ONCE
 ```
 
 Names must be unique. `issue` refuses a name that is taken and shows how to roll
