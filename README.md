@@ -327,11 +327,23 @@ covers gateway traffic. Neither is close for a team.
 ```bash
 node --test test/          # no dependencies needed
 npx wrangler deploy
-npx wrangler tail         # live logs
+npx wrangler tail          # live logs
 ```
 
 A deploy applies to everyone at once, so verify against a real site before
 considering a change done.
+
+### CI
+
+Pushes and pull requests run the test suite, re-run the secret scan on its own so
+a failure is unmistakable, and check the config template still lists every
+setting.
+
+**Deploys are deliberately manual.** `wrangler.toml` holds your account and zone
+ids and is gitignored, so CI has no configuration to deploy with — and a workflow
+that could deploy would need a Cloudflare API token stored in the repo. Running
+`wrangler deploy` from a machine that already has the config is both simpler and
+narrower.
 
 ## License
 

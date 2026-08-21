@@ -1,0 +1,43 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # node --test needs 18+; 20 is what the Worker is developed against.
+          node-version: '20'
+
+      # The Worker has no runtime dependencies, so there is nothing to install.
+      # wrangler is only needed to deploy, which does not happen here.
+      - name: Run tests
+        run: node --test test/
+
+      # Guards against a real account id, zone id, or API key reaching the repo.
+      # It is part of the suite above, but named here so a failure is obvious.
+      - name: Check no secrets are committed
+        run: node --test test/no-secrets.test.mjs
+
+      - name: Check the config template still parses
+        run: |
+          node -e "
+            const fs = require('fs');
+            const text = fs.readFileSync('wrangler.example.toml', 'utf8');
+
+            for (const key of ['name', 'account_id', 'ZONE_NAME', 'CF_ZONE_ID', 'HOSTNAME_PREFIX']) {
+              if (!new RegExp('^' + key, 'm').test(text)) {
+                throw new Error('wrangler.example.toml is missing ' + key);
+              }
+            }
+
+            console.log('template looks complete');
+          "
