@@ -70,7 +70,7 @@ test('the committed template has no real values filled in', () => {
 	const template = readFileSync('wrangler.example.toml', 'utf8');
 
 	// Every operator-specific field must still be a placeholder.
-	for (const key of ['account_id', 'ZONE_NAME', 'CF_ACCOUNT_ID', 'CF_ZONE_ID']) {
+	for (const key of ['account_id', 'ZONE_NAME', 'CF_ZONE_ID']) {
 		const line = template.split('\n').find((l) => l.trim().startsWith(key));
 
 		assert.ok(line, `${key} must be present in the template`);

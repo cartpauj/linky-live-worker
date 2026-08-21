@@ -2,7 +2,7 @@
 #
 #   cp wrangler.example.toml wrangler.toml
 #
-# Then replace the six YOUR_… values below, numbered in the order you fill them.
+# Then replace the five YOUR_… values below, numbered in the order you fill them.
 # Check your work with `npm run check`. Full walkthrough in SETUP.md.
 
 
@@ -19,14 +19,16 @@ account_id = "YOUR_ACCOUNT_ID"
 
 [vars]
 
-# ── 2 ── The same account id again. The Worker cannot see the one above.
-CF_ACCOUNT_ID = "YOUR_ACCOUNT_ID"
-
-# ── 3 ── The domain your links live on, e.g. example.com
+# ── 2 ── The domain your links live on, e.g. example.com
 ZONE_NAME = "YOUR_ZONE"
 
-# ── 4 ── That zone's id, from its Cloudflare overview page
+# ── 3 ── That zone's id, from its Cloudflare overview page
 CF_ZONE_ID = "YOUR_ZONE_ID"
+
+# Optional. The Worker cannot see `account_id` above, so it asks the API token
+# which account it belongs to and remembers the answer. Only set this if the
+# token can see more than one account, which it will tell you.
+# CF_ACCOUNT_ID = ""
 
 # Fixed. Must match `name` above; the Worker cannot see that either.
 WORKER_SCRIPT_NAME = "linky-live"
@@ -38,13 +40,13 @@ HOSTNAME_PREFIX = "linky"
 [[kv_namespaces]]
 binding = "LINKY"
 
-# ── 5 ── From `npx wrangler kv namespace create LINKY`, after step 1
+# ── 4 ── From `npx wrangler kv namespace create LINKY`, after step 1
 id = "YOUR_KV_NAMESPACE_ID"
 
 
 [[routes]]
 
-# ── 6 ── The hostname the add-on talks to, e.g. linky-live.example.com
+# ── 5 ── The hostname the add-on talks to, e.g. linky-live.example.com
 pattern = "linky-live.YOUR_ZONE"
 
 # Fixed. Lets Cloudflare create the DNS record and certificate for it.

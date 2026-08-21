@@ -12,9 +12,10 @@
 
 import { readFileSync } from 'node:fs';
 
+// CF_ACCOUNT_ID is deliberately absent: the Worker asks the API token which
+// account it belongs to, so it only needs setting when the token can see several.
 const REQUIRED = [
 	{ key: 'account_id', where: 'top level', what: 'Your Cloudflare account id — `wrangler whoami`' },
-	{ key: 'CF_ACCOUNT_ID', where: '[vars]', what: 'The same account id, for the Worker\'s own API calls' },
 	{ key: 'ZONE_NAME', where: '[vars]', what: 'The domain links are created on, e.g. example.com' },
 	{ key: 'CF_ZONE_ID', where: '[vars]', what: 'That zone\'s id, from its Cloudflare overview page' },
 	{ key: 'id', where: '[[kv_namespaces]]', what: 'From `wrangler kv namespace create LINKY`' },

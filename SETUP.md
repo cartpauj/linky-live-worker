@@ -49,10 +49,10 @@ cp wrangler.example.toml wrangler.toml
 $EDITOR wrangler.toml
 ```
 
-The file has **six placeholders**, numbered `── 1 ──` to `── 6 ──` in the order
+The file has **five placeholders**, numbered `── 1 ──` to `── 5 ──` in the order
 you fill them. Everything else is marked *Fixed* and can be left alone.
 
-Do 1 through 4 first, then run this to get the value for 5:
+Do 1 through 3 first, then run this to get the value for 4:
 
 ```bash
 npx wrangler kv namespace create LINKY
@@ -68,10 +68,13 @@ Then check nothing is left:
 npm run check
 ```
 
-Two values are deliberately repeated — `CF_ACCOUNT_ID` duplicates `account_id`,
-and `WORKER_SCRIPT_NAME` duplicates `name`. Wrangler uses the originals to deploy
-and does not expose them to the running Worker, which makes its own Cloudflare
-API calls and needs the same facts. `npm run check` verifies the pair it can.
+`WORKER_SCRIPT_NAME` repeats `name`, because wrangler uses `name` to deploy and
+does not expose it to the running Worker, which needs its own name to route a
+hostname to itself. `npm run check` verifies the two agree.
+
+The account id is **not** asked for twice. The Worker asks its API token which
+account it belongs to and remembers the answer, so `CF_ACCOUNT_ID` only needs
+setting if that token can see several accounts — and it will say so if it does.
 
 Generated hostnames look like `linky-k4d8vn.example.com`. `HOSTNAME_PREFIX` is
 yours to change; the flat shape is not — free Universal SSL covers `example.com`

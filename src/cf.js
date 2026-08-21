@@ -8,6 +8,9 @@
 
 const API = 'https://api.cloudflare.com/client/v4';
 
+/** KV key holding the discovered account id, so it is looked up once. */
+const ACCOUNT_CACHE_KEY = 'meta:accountId';
+
 async function cfFetch(env, path, init = {}) {
 	const res = await fetch(`${API}${path}`, {
 		...init,
@@ -29,20 +32,85 @@ async function cfFetch(env, path, init = {}) {
 }
 
 /**
+ * The account id, discovered from the API token rather than configured twice.
+ *
+ * wrangler needs `account_id` in wrangler.toml to know where to deploy, but does
+ * not expose it to the running Worker. Asking for it a second time under [vars]
+ * was pure duplication, so instead the token is asked which account it belongs
+ * to, and the answer is cached in KV.
+ *
+ * `CF_ACCOUNT_ID` still wins if set, which covers a token scoped to more than one
+ * account — discovery cannot pick for you there, so it says so rather than
+ * guessing.
+ */
+export async function accountId(env) {
+	if (env.CF_ACCOUNT_ID) {
+		return env.CF_ACCOUNT_ID;
+	}
+
+	const cached = await env.LINKY.get(ACCOUNT_CACHE_KEY);
+
+	if (cached) {
+		return cached;
+	}
+
+	let accounts;
+
+	try {
+		accounts = await cfFetch(env, '/accounts');
+	} catch (err) {
+		/*
+		 * Any failure here — including a token without permission to list accounts —
+		 * has the same one-line fix, so say it rather than passing Cloudflare's
+		 * wording through. This keeps discovery a convenience: at worst the operator
+		 * sets one value, exactly as they would have had to anyway.
+		 */
+		throw new Error(
+			'Could not read the account from the API token '
+			+ `(${err.message}). Set CF_ACCOUNT_ID under [vars] in wrangler.toml `
+			+ 'to the account that owns your zone.',
+		);
+	}
+
+	if (!accounts || !accounts.length) {
+		throw new Error(
+			'The API token reports no accounts. Set CF_ACCOUNT_ID under [vars] in '
+			+ 'wrangler.toml to the account that owns your zone.',
+		);
+	}
+
+	if (accounts.length > 1) {
+		throw new Error(
+			`The API token can see ${accounts.length} accounts, so the right one cannot be `
+			+ 'inferred. Set CF_ACCOUNT_ID under [vars] in wrangler.toml to the account '
+			+ 'that owns your zone.',
+		);
+	}
+
+	const id = accounts[0].id;
+
+	// Cached rather than re-fetched: it never changes for a given deployment, and
+	// this runs on every provision.
+	await env.LINKY.put(ACCOUNT_CACHE_KEY, id);
+
+	return id;
+}
+
+/**
  * Create a remotely-managed tunnel. `config_src: 'cloudflare'` is what lets us
  * push ingress rules over the API instead of shipping a config file to the client.
  *
  * The returned `token` is all cloudflared needs to run this tunnel.
  */
-export function createTunnel(env, name) {
-	return cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel`, {
+export async function createTunnel(env, name) {
+	return cfFetch(env, `/accounts/${await accountId(env)}/cfd_tunnel`, {
 		method: 'POST',
 		body: JSON.stringify({ name, config_src: 'cloudflare' }),
 	});
 }
 
-export function deleteTunnel(env, tunnelId) {
-	return cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}`, {
+export async function deleteTunnel(env, tunnelId) {
+	return cfFetch(env, `/accounts/${await accountId(env)}/cfd_tunnel/${tunnelId}`, {
 		method: 'DELETE',
 	});
 }
@@ -54,8 +122,8 @@ export function deleteTunnel(env, tunnelId) {
  * any Host header reaches the right site. The trailing 404 is the required
  * catch-all for anything that doesn't match.
  */
-export function putIngress(env, tunnelId, hostname, port) {
-	return cfFetch(env, `/accounts/${env.CF_ACCOUNT_ID}/cfd_tunnel/${tunnelId}/configurations`, {
+export async function putIngress(env, tunnelId, hostname, port) {
+	return cfFetch(env, `/accounts/${await accountId(env)}/cfd_tunnel/${tunnelId}/configurations`, {
 		method: 'PUT',
 		body: JSON.stringify({
 			config: {
