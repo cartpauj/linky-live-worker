@@ -50,8 +50,8 @@ npx wrangler kv namespace create LINKY    # prints an id
 $EDITOR wrangler.toml
 ```
 
-`wrangler.toml` is gitignored. Every field is commented in place; these are the
-ones to change:
+`wrangler.toml` is gitignored and holds no credentials — only ids and hostnames.
+Every field is commented in place; these are the ones to change:
 
 | Field | Value |
 | --- | --- |

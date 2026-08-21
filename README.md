@@ -112,7 +112,9 @@ cp wrangler.example.toml wrangler.toml
 
 `wrangler.toml` is gitignored, so nothing account-specific ends up in the repo.
 
-Everything below is in `wrangler.toml`.
+Everything below is in `wrangler.toml`, which holds no credentials — only ids and
+hostnames. The one secret, `CF_API_TOKEN`, is set with `wrangler secret put`, and
+user keys live in KV (see [Adding people](#adding-people)).
 
 | Setting | Where | What it is |
 | --- | --- | --- |
@@ -161,7 +163,10 @@ terminal, so nothing needs a deploy and no credential goes in a config file.
 ```bash
 npm run keys issue "Alice"     # generates a key and prints it once
 npm run keys list              # everyone, numbered
-npm run keys revoke 3
+npm run keys search alice      # matches, keeping those numbers
+npm run keys revoke 3          # block, keeping the record
+npm run keys restore 3         # undo a revoke
+npm run keys remove 3          # delete the record
 ```
 
 You supply a unique name; the key is generated and printed alongside your service
