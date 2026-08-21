@@ -142,9 +142,16 @@ machines. The key itself is never stored, so a lost key is rolled:
 npm run keys remove "Alice" && npm run keys issue "Alice"
 ```
 
-`revoke`, `restore` and `remove` accept a number from `list`, a name, or a hash
-prefix, and confirm first by naming who they matched. Add `--yes` to skip the
-prompt.
+`revoke`, `restore` and `remove` accept, safest first:
+
+| Form | Behaviour |
+| --- | --- |
+| `remove …Qw8zT1` | The key fragment alone. Cannot be ambiguous, so it acts immediately |
+| `remove 3 Qw8zT1` | A number, checked against the fragment printed beside it |
+| `remove 3` | A number alone, confirmed by naming who it matched |
+| `remove "Alice"` | A name, confirmed the same way |
+
+Add `--yes` to skip a prompt.
 
 Revoking blocks new provisioning at once. Links already running keep running
 until stopped, so release any hostnames you also want reclaimed.
@@ -156,11 +163,20 @@ manage the same team. Each needs Cloudflare access to the account and a
 `wrangler.toml` with the same account, zone, and KV ids.
 
 Each person's key is a separate KV entry, so two admins issuing at the same time
-cannot clobber each other. **Numbers can shift, though**: they are positions in a
-shared list, so if someone else adds or removes a key between your `list` and
-your `remove`, every number after theirs moves by one. That is why destructive
-commands name who they matched before doing anything — read that line rather than
-trusting the number.
+cannot clobber each other.
+
+**Numbers can shift**: they are positions in a shared list, so if someone else
+adds or removes a key between your `list` and your `remove`, every number after
+theirs moves by one. Two things handle that:
+
+- **Pass the fragment as well** — `remove 3 Qw8zT1`. If the list moved, `#3` no
+  longer has that fragment and the command refuses, telling you who is there now
+  and who actually holds the fragment.
+- **Or pass the fragment alone** — `remove …Qw8zT1`. Fragments do not shift, so
+  this is unambiguous no matter what anyone else did.
+
+A bare number still works and is confirmed by naming who it matched, which is
+enough when you are the only one making changes.
 
 ### Only admins can add or revoke keys
 

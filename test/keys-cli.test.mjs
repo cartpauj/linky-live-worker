@@ -34,11 +34,35 @@ test('destructive commands confirm and name who they matched', () => {
 	// so the confirmation has to identify the person, not the number.
 	assert.match(source, /async function confirm/, 'must have a confirmation step');
 	assert.match(source, /person\.name/, 'confirmation must name the person');
-	assert.match(source, /person\.hash\.slice/, 'and show the hash it resolved to');
 
 	for (const cmd of ['Permanently remove', 'Revoke']) {
 		assert.ok(source.includes(cmd), `${cmd} must be confirmed`);
 	}
+});
+
+test('a number paired with a fragment is verified, not trusted', () => {
+	// This is the fix for a shifting list: the fragment printed beside a number
+	// acts as a check on it, so acting on a stale number is caught rather than
+	// silently hitting whoever moved into that position.
+	assert.match(source, /person\.hint !== parts\[1\]/, 'must compare the fragment to the row');
+	assert.match(source, /The list has changed since you looked/, 'and explain why it mismatched');
+	assert.match(source, /is now \$\{actual\.name\}/, 'naming who actually holds that fragment');
+});
+
+test('a fragment on its own needs no confirmation', () => {
+	// A fragment cannot shift, so it already identifies one person exactly; a
+	// prompt would add friction without adding safety.
+	assert.match(source, /verified: true/, 'must mark fragment matches as verified');
+	assert.match(source, /!verified && !\(await confirm/, 'and skip the prompt when verified');
+});
+
+test('an ambiguous fragment refuses rather than guessing', () => {
+	assert.match(source, /More than one key ends in/, 'must refuse a fragment shared by two keys');
+});
+
+test('a leading ellipsis is accepted, since that is how it is printed', () => {
+	// `list` shows …Qw8zT1, so pasting that back verbatim has to work.
+	assert.match(source, /replace\(\/\^…\//, 'must strip the printed ellipsis');
 });
 
 test('confirmation can be skipped explicitly, but never implicitly', () => {

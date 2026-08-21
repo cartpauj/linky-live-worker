@@ -174,6 +174,11 @@ hostname, so both halves can be sent in one message. Listings show names, status
 and the last six characters of each key — never the key itself, which is stored
 only as a hash. A lost key is rolled, not recovered.
 
+Destructive commands take the key fragment as well as, or instead of, the number:
+`remove 3 Qw8zT1` verifies that `#3` still holds that fragment, and
+`remove …Qw8zT1` skips numbering altogether. That matters when several admins
+share the list — see [`SETUP.md`](SETUP.md#several-people-managing-it).
+
 Only a SHA-256 of each key is stored, so a key can be verified but never read
 back. Any number of admins can manage the same team — see
 [`SETUP.md`](SETUP.md#7-add-people).

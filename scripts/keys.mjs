@@ -117,63 +117,106 @@ function show(people, all) {
 }
 
 /**
- * Turn whatever the user typed into exactly one person.
+ * Turn what the user typed into exactly one person.
  *
- * Accepts a number from `list`, a hash prefix, or a name — so anything visible in
- * the output can be pasted straight back in.
+ * Accepts, in order of how safe each is against a shifting list:
+ *
+ *   remove …Qw8zT1     the key fragment alone — cannot shift, so no prompt
+ *   remove 3 Qw8zT1    a number, checked against the fragment at that position
+ *   remove 3           a number alone, confirmed by name
+ *   remove "Alice"     a name, confirmed by name
+ *
+ * Numbers are positions in a shared list. If another admin issues or removes a
+ * key in between, every later number moves by one — so a number paired with the
+ * fragment printed beside it is verified rather than trusted.
+ *
+ * @returns {{ person: object, verified: boolean }}
  */
-function resolve(target) {
-	const raw = String(target || '').trim().replace(/…$/, '');
+function resolve(tokens) {
 	const all = everyone();
 
 	if (!all.length) {
 		fail('Nobody has a key yet.');
 	}
 
-	// A number from the listing.
-	if (/^\d+$/.test(raw)) {
-		const index = Number(raw) - 1;
+	// Fragments are printed with a leading ellipsis; accept it either way.
+	const clean = (t) => String(t || '').trim().replace(/^…/, '').replace(/^\.\.\./, '');
+	const parts = tokens.map(clean).filter(Boolean);
 
-		if (index < 0 || index >= all.length) {
-			fail(`There is no #${raw}. The list has ${all.length} entr${all.length === 1 ? 'y' : 'ies'}.`);
-		}
-
-		return all[index];
+	if (!parts.length) {
+		fail('Who? Pass a number or key fragment from `list`, or a name.');
 	}
 
-	// A hash prefix.
-	if (/^[0-9a-f]{6,64}$/.test(raw)) {
-		const matches = all.filter((p) => p.hash.startsWith(raw));
+	const byHint = (value) => all.filter((p) => p.hint && p.hint === value);
 
-		if (matches.length === 1) {
-			return matches[0];
+	// A number plus the fragment printed beside it.
+	if (parts.length >= 2 && /^\d+$/.test(parts[0])) {
+		const person = all[Number(parts[0]) - 1];
+
+		if (!person) {
+			fail(`There is no #${parts[0]}. The list has ${all.length} entries.`);
 		}
 
-		if (matches.length > 1) {
-			fail(`"${raw}" matches ${matches.length} keys. Use more characters, or a number.`);
+		if (person.hint !== parts[1]) {
+			const actual = byHint(parts[1])[0];
+
+			fail(
+				`#${parts[0]} is ${person.name} (…${person.hint}), not …${parts[1]}.\n\n`
+				+ 'The list has changed since you looked — someone else added or removed a key.\n'
+				+ (actual
+					? `…${parts[1]} is now ${actual.name}. Re-run with just the fragment:\n  npm run keys ${command} …${parts[1]}`
+					: `Nothing ends in …${parts[1]} any more. Run \`list\` again.`),
+			);
 		}
+
+		return { person, verified: true };
+	}
+
+	const single = parts[0];
+
+	// A fragment on its own, which cannot be shifted by someone else's edit.
+	const hinted = byHint(single);
+
+	if (hinted.length === 1) {
+		return { person: hinted[0], verified: true };
+	}
+
+	if (hinted.length > 1) {
+		console.log(`\nMore than one key ends in …${single}. Use a number and fragment:`);
+		show(hinted, all);
+		console.log('');
+		process.exit(1);
+	}
+
+	// A bare number.
+	if (/^\d+$/.test(single)) {
+		const person = all[Number(single) - 1];
+
+		if (!person) {
+			fail(`There is no #${single}. The list has ${all.length} entries.`);
+		}
+
+		return { person, verified: false };
 	}
 
 	// A name.
-	const wanted = raw.toLowerCase();
-	// Names are unique, so an exact match is unambiguous.
+	const wanted = single.toLowerCase();
 	const named = all.find((p) => String(p.name || '').toLowerCase() === wanted);
 
 	if (named) {
-		return named;
+		return { person: named, verified: false };
 	}
 
-	// Nothing exact — offer near matches rather than just refusing.
 	const near = all.filter((p) => String(p.name || '').toLowerCase().includes(wanted));
 
 	if (near.length) {
-		console.log(`\nNo exact match for "${raw}". Did you mean one of these?`);
+		console.log(`\nNo exact match for "${single}". Did you mean one of these?`);
 		show(near, all);
 		console.log('');
 		process.exit(1);
 	}
 
-	fail(`No key found for "${raw}". Run \`list\` to see who has one.`);
+	fail(`Nothing matches "${single}". Run \`list\` to see who has a key.`);
 
 	return null;
 }
@@ -221,7 +264,8 @@ async function confirm(action, person) {
 /* ------------------------------------------------------------------ */
 
 const [command, ...rest] = process.argv.slice(2);
-const arg = rest.filter((a) => a !== '--yes' && a !== '-y').join(' ').trim();
+const positional = rest.filter((a) => a !== '--yes' && a !== '-y');
+const arg = positional.join(' ').trim();
 
 const USAGE = `
 Manage who may use the Linky Live add-on.
@@ -236,7 +280,15 @@ Manage who may use the Linky Live add-on.
 revoke, restore and remove confirm first, naming who they matched. Add --yes to
 skip that.
 
-revoke, restore and remove take a number from \`list\` or a name.
+revoke, restore and remove accept, safest first:
+
+  …Qw8zT1        the key fragment alone
+  3 Qw8zT1       a number, checked against that fragment
+  3              a number alone, confirmed by name
+  "Alice"        a name, confirmed by name
+
+Numbers shift if someone else adds or removes a key, so pairing a number with
+the fragment beside it is checked rather than trusted. --yes skips prompts.
 `;
 
 if (!command || command === 'help' || command === '--help') {
@@ -328,8 +380,9 @@ async function main() {
 
 			console.log(
 				`\n  ${shown.length}${shown.length === all.length ? '' : ` of ${all.length}`} key(s). `
-				+ 'Remove or revoke by number or name:\n'
-				+ `    node scripts/keys.mjs remove ${all.findIndex((p) => p.hash === shown[0].hash) + 1}\n`,
+				+ 'Include the fragment to be sure of the target:\n'
+				+ `    npm run keys remove …${shown[0].hint || ''}\n`
+				+ `    npm run keys remove ${all.findIndex((p) => p.hash === shown[0].hash) + 1} ${shown[0].hint || ''}\n`,
 			);
 			break;
 		}
@@ -340,10 +393,11 @@ async function main() {
 				fail(`Who?\n  node scripts/keys.mjs ${command} "Alice"`);
 			}
 
-			const person = resolve(arg);
+			const { person, verified } = resolve(positional);
 			const active = command === 'restore';
 
-			if (!(await confirm(active ? 'Restore' : 'Revoke', person))) {
+			// A verified fragment already identifies the person, so a prompt adds nothing.
+			if (!verified && !(await confirm(active ? 'Restore' : 'Revoke', person))) {
 				break;
 			}
 
@@ -375,9 +429,9 @@ async function main() {
 				fail('Who?\n  node scripts/keys.mjs remove "Alice"');
 			}
 
-			const person = resolve(arg);
+			const { person, verified } = resolve(positional);
 
-			if (!(await confirm('Permanently remove', person))) {
+			if (!verified && !(await confirm('Permanently remove', person))) {
 				break;
 			}
 
