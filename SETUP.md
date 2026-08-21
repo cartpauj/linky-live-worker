@@ -63,7 +63,6 @@ ones to change:
 | `HOSTNAME_PREFIX` | Prefix for generated hostnames, e.g. `linky` |
 | `[[kv_namespaces]]` `id` | The id just printed |
 | `[[routes]]` `pattern` | The API hostname, e.g. `linky-live.example.com` |
-| `TEAM_KEYS` | At least one `Name = key` line — see step 7 |
 
 Hostnames come out as `linky-k4d8vn.example.com`. The prefix is yours to choose;
 the flat shape is not — free Universal SSL covers `example.com` and
@@ -109,40 +108,65 @@ Left on, it intermittently rejects webhook POSTs from Stripe and PayPal.
 
 ## 7. Add people
 
-One key per person, not per site. The same key works on all of that person's
-sites.
-
-**Workers & Pages → your worker → Settings → Variables → `TEAM_KEYS`**
-
-```
-# Team keys
-Alice = linky_EXAMPLE_KEY_REPLACE_ME
-Bob   = linky_EXAMPLE_KEY_REPLACE_ME
-```
-
-- **Add someone** — add a line, save, send them the key
-- **Revoke someone** — delete their line, save; locked out immediately
-- **See who has access** — read the field
-
-Generate a key:
+One key per person, not per site — the same key works on all of that person's
+sites. Keys live in KV, so nothing here needs a deploy and nothing lands in a
+config file.
 
 ```bash
-openssl rand -base64 32 | tr '+/' '-_' | tr -d '=' | sed 's/^/linky_/'
+npm run keys issue "Alice"     # generates a key and prints it once
+npm run keys list              # everyone, numbered
+npm run keys search alice      # matches, keeping those numbers
+npm run keys revoke 3          # block, keeping the record
+npm run keys restore 3         # undo a revoke
+npm run keys remove 3          # delete the record
 ```
 
-Names are labels only and are never read by the Worker; access is decided by the
-key alone, so renaming someone is safe. Blank lines and `#` comments are ignored,
-and commas work as separators.
+You supply a name; the key is generated and printed **together with your service
+hostname**, so you can send someone everything they need in one message:
 
-> **`wrangler deploy` overwrites this variable** with whatever is in
-> `wrangler.toml`, since it is a `[vars]` entry. Either treat `wrangler.toml` as
-> the source of truth and deploy after editing, or remove the block from it and
-> use `wrangler secret put TEAM_KEYS` — which keeps keys out of the repo and
-> survives deploys, but cannot be read back.
+```
+Key for Alice — send both lines:
 
-Key management is deliberately limited to the dashboard and this file. No HTTP
-endpoint creates, lists, or revokes a key, so a leaked teammate key cannot mint
-more, and the add-on cannot issue keys at all.
+  Service:  linky-live.example.com
+  Key:      linky_MakRAFXQb0bHGdcQRFVsDYA2MzDdy1HKecLVRsWScK0
+```
+
+Names must be unique. `issue` refuses a name that is taken and shows how to roll
+it, which is what keeps `remove "Alice"` unambiguous.
+
+Listings show the name, status, date, and the **last six characters** of the key —
+enough to answer "which of these is mine?" when one person has keys on several
+machines. The key itself is never stored, so a lost key is rolled:
+
+```bash
+npm run keys remove "Alice" && npm run keys issue "Alice"
+```
+
+`revoke`, `restore` and `remove` accept a number from `list`, a name, or a hash
+prefix, and confirm first by naming who they matched. Add `--yes` to skip the
+prompt.
+
+Revoking blocks new provisioning at once. Links already running keep running
+until stopped, so release any hostnames you also want reclaimed.
+
+### Several people managing it
+
+Everything is stored in the shared KV namespace, so any number of admins can
+manage the same team. Each needs Cloudflare access to the account and a
+`wrangler.toml` with the same account, zone, and KV ids.
+
+Each person's key is a separate KV entry, so two admins issuing at the same time
+cannot clobber each other. **Numbers can shift, though**: they are positions in a
+shared list, so if someone else adds or removes a key between your `list` and
+your `remove`, every number after theirs moves by one. That is why destructive
+commands name who they matched before doing anything — read that line rather than
+trusting the number.
+
+### Only admins can add or revoke keys
+
+Key management needs Cloudflare account access. No HTTP endpoint creates, lists,
+or revokes a key, so a leaked teammate key cannot mint more, and the add-on cannot
+issue keys at all.
 
 ## 8. Install the add-on
 

@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { createHash } from 'node:crypto';
+
 import worker from '../src/index.js';
 import { sha256Hex } from '../src/util.js';
 
@@ -33,13 +35,18 @@ function fakeKV(seed = {}) {
 
 const HOST = 'linky-k4d8vn.example.com';
 
-function makeEnv(seed, teamKeys = 'Paul = linky_mykey') {
+/** Node's crypto, so seeding an env does not have to be awaited. */
+const sha256Sync = (value) => createHash('sha256').update(value).digest('hex');
+
+/**
+ * Keys live in KV, so an env needs a teamkey record rather than a variable.
+ */
+function makeEnv(seed, key = 'linky_mykey') {
 	return {
-		LINKY: fakeKV(seed),
+		LINKY: fakeKV({ [`teamkey:${sha256Sync(key)}`]: { name: 'Paul', active: true }, ...seed }),
 		ZONE_NAME: 'example.com',
 		HOSTNAME_PREFIX: 'linky',
 		WORKER_SCRIPT_NAME: 'linky-live-links',
-		TEAM_KEYS: teamKeys,
 		CF_ACCOUNT_ID: 'acct',
 		CF_ZONE_ID: 'zone',
 		CF_API_TOKEN: 'token',
@@ -224,8 +231,8 @@ test('control plane rejects missing and bad API keys', async () => {
 test('a deactivated key stops working', async () => {
 	stubFetch();
 
-	// Revoking is deleting the line, so the key simply is not in TEAM_KEYS.
-	const env = makeEnv({}, 'Paul = linky_mykey');
+	// A revoked key keeps its record but stops working.
+	const env = makeEnv({ [`teamkey:${sha256Sync('retired-key')}`]: { name: 'ex', active: false } });
 
 	const res = await worker.fetch(
 		new Request('https://linky-live.example.com/v1/status', { headers: { Authorization: 'Bearer retired-key' } }),
@@ -242,7 +249,7 @@ test('control plane isolates one teammate from another', async () => {
 
 	const env = makeEnv({
 		[`site:${theirs}:secret-site`]: { siteId: 'secret-site', hostname: 'linky-theirs.example.com', bypassPaths: [] },
-	}, 'Me = my-key');
+	}, 'my-key');
 
 	const res = await worker.fetch(
 		new Request('https://linky-live.example.com/v1/status', { headers: { Authorization: 'Bearer my-key' } }),
@@ -261,7 +268,7 @@ test('config endpoint validates before storing', async () => {
 	const hash = await sha256Hex('my-key');
 	const env = makeEnv({
 		[`site:${hash}:site-1`]: { ...hostRecord, hostname: HOST, port: 10063 },
-	}, 'Me = my-key');
+	}, 'my-key');
 
 	const post = (body) =>
 		worker.fetch(

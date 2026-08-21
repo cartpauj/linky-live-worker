@@ -54,8 +54,7 @@ async function envWithKey() {
 
 	return {
 		env: {
-			LINKY: fakeKV({}),
-			TEAM_KEYS: `Paul = ${ADMIN_ISSUED_KEY}`,
+			LINKY: fakeKV({ [`teamkey:${hash}`]: { name: 'Paul', active: true } }),
 			ZONE_NAME: 'example.com',
 			HOSTNAME_PREFIX: 'linky',
 			CONTROL_HOSTNAME: 'linky-live.example.com',
@@ -116,9 +115,11 @@ test('a valid teammate key cannot create or alter any key record', async () => {
 
 	// Keys live in a dashboard variable the worker can only read, so nothing it
 	// writes can ever create or alter one.
-	assert.deepEqual(after, before, 'no key record may appear in KV');
-	assert.equal(after.length, 0);
-	assert.equal(hash.length, 64, 'the caller is identified by a hash, not a stored record');
+	assert.deepEqual(after, before, 'the set of keys must be untouched');
+	assert.equal(after.length, 1, 'only the caller\'s own record, unchanged');
+
+	// And no self-escalation: the caller's own record is byte-identical.
+	assert.deepEqual(await env.LINKY.get(`teamkey:${hash}`, 'json'), { name: 'Paul', active: true });
 });
 
 test('payload fields cannot smuggle a key record into KV', async () => {
@@ -132,12 +133,12 @@ test('payload fields cannot smuggle a key record into KV', async () => {
 
 	const teamKeys = (await env.LINKY.list({ prefix: 'teamkey:' })).keys.map((k) => k.name);
 
-	assert.equal(teamKeys.length, 0, 'no key record may appear in KV');
+	assert.equal(teamKeys.length, 1, 'no extra key record may appear');
 
 	// Anything written must live under the caller-scoped site: or host: namespace.
 	for (const name of env.LINKY.store.keys()) {
 		assert.ok(
-			name.startsWith('site:') || name.startsWith('host:'),
+			name.startsWith('site:') || name.startsWith('host:') || name.startsWith('teamkey:'),
 			`unexpected KV namespace written: ${name}`,
 		);
 	}

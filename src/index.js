@@ -67,10 +67,12 @@ const fail = (message, status = 400) => json({ ok: false, error: message }, stat
 /* ------------------------------------------------------------------ *
  * KV keys
  *
+ *   teamkey:<sha256>        -> { name, active }        who may use the addon
  *   site:<keyHash>:<siteId> -> full site record        addon-facing lookup
  *   host:<hostname>         -> auth + bypass subset    gateway hot path
  * ------------------------------------------------------------------ */
 
+const teamKeyKey = (hash) => `teamkey:${hash}`;
 const siteKey = (hash, siteId) => `site:${hash}:${siteId}`;
 const hostKey = (hostname) => `host:${hostname}`;
 
@@ -95,50 +97,14 @@ async function syncHostRecord(env, record) {
 }
 
 /**
- * Parse the dashboard-managed key list.
- *
- * Kept deliberately forgiving so it can be edited by hand in the Cloudflare
- * dashboard without a syntax error locking the whole team out. Accepts one
- * entry per line or comma-separated, named or bare:
- *
- *   Paul = linky_abc123
- *   Dave: linky_xyz789
- *   linky_anonymous
- *
- * Blank lines and lines starting with # are ignored.
- */
-export function parseTeamKeys(raw) {
-	if (typeof raw !== 'string' || raw.trim() === '') {
-		return [];
-	}
-
-	return raw
-		.split(/[\n,]/)
-		.map((line) => line.trim())
-		.filter((line) => line !== '' && !line.startsWith('#'))
-		.map((line) => {
-			const split = line.search(/[=:]/);
-
-			if (split === -1) {
-				return { name: 'unnamed', key: line };
-			}
-
-			return {
-				name: line.slice(0, split).trim() || 'unnamed',
-				key: line.slice(split + 1).trim(),
-			};
-		})
-		.filter((entry) => entry.key !== '');
-}
-
-/**
  * Resolve the caller's bearer token to a teammate, or null.
  *
- * Keys live in the TEAM_KEYS variable, edited in the Cloudflare dashboard, so
- * adding or removing someone is a text edit with no deploy and no tooling.
+ * Keys live in KV, written by `npm run keys`, and only their SHA-256 is stored —
+ * so a key can be verified but never read back out, and nothing in the repo or
+ * the config file carries a credential.
  *
- * A caller is identified by the SHA-256 of their key, never by the name beside
- * it, so a person can be renamed freely without orphaning their sites.
+ * A caller is identified by that hash, never by the name beside it, so someone
+ * can be renamed without orphaning their sites.
  */
 async function authenticateAddon(request, env) {
 	const header = request.headers.get('Authorization') || '';
@@ -148,23 +114,14 @@ async function authenticateAddon(request, env) {
 		return null;
 	}
 
-	const presented = match[1].trim();
+	const hash = await sha256Hex(match[1].trim());
+	const team = await env.LINKY.get(teamKeyKey(hash), 'json');
 
-	// Compare against every entry rather than stopping at the first match, so the
-	// time taken does not reveal a key's position in the list.
-	let found = null;
-
-	for (const entry of parseTeamKeys(env.TEAM_KEYS)) {
-		if (safeEqual(entry.key, presented)) {
-			found = entry;
-		}
-	}
-
-	if (!found) {
+	if (!team || team.active === false) {
 		return null;
 	}
 
-	return { hash: await sha256Hex(presented), team: { name: found.name } };
+	return { hash, team };
 }
 
 /** What the addon is allowed to see. Never leaks other teammates' records. */

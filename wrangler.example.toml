@@ -48,27 +48,8 @@ WORKER_SCRIPT_NAME = "linky-live"
 CF_ACCOUNT_ID = "YOUR_ACCOUNT_ID"
 CF_ZONE_ID = "YOUR_ZONE_ID"
 
-# Who may use the add-on. One person per line, `Name = key`.
-#
-# The name is a label for your own reference and is never read by the Worker;
-# access is decided by the key alone. Deleting a line revokes that person
-# immediately.
-#
-# Generate a key with:
-#   openssl rand -base64 32 | tr '+/' '-_' | tr -d '=' | sed 's/^/linky_/'
-#
-# Note that `wrangler deploy` pushes whatever is written here, overwriting any
-# edit made in the dashboard. If you would rather manage people in the dashboard
-# alone, delete this block and set it as a secret instead:
-#
-#   wrangler secret put TEAM_KEYS
-#
-# A secret stays out of the repo and survives deploys, but cannot be read back.
-TEAM_KEYS = """
-# Alice = linky_replace_me
-"""
-
-# Stores the per-site records the gateway reads on every request.
+# Stores who may use the add-on, and the per-site records the gateway reads on
+# every request. Manage people with `npm run keys` — nothing here is a credential.
 # Create it with `wrangler kv namespace create LINKY` and paste the id here.
 [[kv_namespaces]]
 binding = "LINKY"

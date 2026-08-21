@@ -31,10 +31,12 @@ cp wrangler.example.toml wrangler.toml
 npx wrangler login
 
 npx wrangler kv namespace create LINKY     # paste the printed id into wrangler.toml
-$EDITOR wrangler.toml                      # account id, zone, hostname, a team key
+$EDITOR wrangler.toml                      # account id, zone, hostname
 
 npx wrangler secret put CF_API_TOKEN       # needs a real terminal — see below
 npx wrangler deploy
+
+npm run keys issue "Alice"                 # a key for your first user
 ```
 
 Two things that are not obvious:
@@ -121,7 +123,6 @@ Everything below is in `wrangler.toml`.
 | `ZONE_NAME` | `[vars]` | The domain links are created on, e.g. `example.com` |
 | `CF_ZONE_ID` | `[vars]` | That zone's id, from its Cloudflare overview page |
 | `HOSTNAME_PREFIX` | `[vars]` | `linky` gives `linky-k4d8vn.example.com` |
-| `TEAM_KEYS` | `[vars]` | Who may use the add-on, one `Name = key` per line |
 | `id` | `[[kv_namespaces]]` | From `wrangler kv namespace create LINKY` |
 | `pattern` | `[[routes]]` | The fixed hostname the add-on talks to |
 
@@ -154,11 +155,22 @@ Full walkthrough in [`SETUP.md`](SETUP.md).
 
 ## Adding people
 
-One key per person, not per site. Keys live in the `TEAM_KEYS` variable, edited
-in the Cloudflare dashboard — add a line to onboard someone, delete it to revoke
-them, no deploy needed.
+One key per person, not per site. Keys live in KV and are managed from the
+terminal, so nothing needs a deploy and no credential goes in a config file.
 
-Full details, including why key management is deliberately dashboard-only, are in
+```bash
+npm run keys issue "Alice"     # generates a key and prints it once
+npm run keys list              # everyone, numbered
+npm run keys revoke 3
+```
+
+You supply a unique name; the key is generated and printed alongside your service
+hostname, so both halves can be sent in one message. Listings show names, status,
+and the last six characters of each key — never the key itself, which is stored
+only as a hash. A lost key is rolled, not recovered.
+
+Only a SHA-256 of each key is stored, so a key can be verified but never read
+back. Any number of admins can manage the same team — see
 [`SETUP.md`](SETUP.md#7-add-people).
 
 ## Worker API
@@ -179,13 +191,16 @@ and route survive.
 ### KV schema
 
 ```
+teamkey:<sha256>        → { name, active }     who may use the addon
 site:<keyHash>:<siteId> → full site record     addon-facing lookup
 host:<hostname>         → auth + bypass subset gateway hot path
 ```
 
 The `host:` mirror exists so the gateway needs one KV read by hostname and never
-has to work out who owns the site. Keys are not stored in KV at all — they live in
-the `TEAM_KEYS` variable, which the Worker can only read.
+has to work out who owns the site.
+
+Keys are stored as `teamkey:<sha256>`, so the Worker can verify one without ever
+being able to read it back.
 
 ---
 
