@@ -437,6 +437,12 @@ that could deploy would need a Cloudflare API token stored in the repo. Running
 `wrangler deploy` from a machine that already has the config is both simpler and
 narrower.
 
+## Possible future work
+
+[`PHASE2.md`](PHASE2.md) costs out replacing the random hostname suffix with
+readable words — `linky-the-beefy-blue-comely-crane-7` — including the entropy
+maths, the DNS length limit, and the invariants it would need. Not implemented.
+
 ## License
 
 GPL-3.0-or-later. See [LICENSE](LICENSE).
