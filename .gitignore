@@ -16,3 +16,6 @@ node_modules/
 # deliberate exception.
 wrangler*.toml
 !wrangler.example.toml
+
+# Local planning notes, not part of the published project.
+PHASE2.md
