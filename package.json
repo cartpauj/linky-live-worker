@@ -1,6 +1,6 @@
 {
   "name": "linky-live-worker",
-  "version": "0.8.1",
+  "version": "1.0.0",
   "description": "Control plane and auth gateway for Linky Live",
   "type": "module",
   "scripts": {

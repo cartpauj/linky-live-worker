@@ -446,7 +446,7 @@ Worker reports its own version on the authenticated `/v1/status` response:
 ```bash
 curl -s https://linky-live.example.com/v1/status \
   -H "Authorization: Bearer $YOUR_KEY"
-# {"ok": true, "version": "0.0.1", "sites": []}
+# {"ok": true, "version": "1.0.0", "sites": []}
 ```
 
 That matters because a deploy affects everyone at once, and the Worker shares a
@@ -466,8 +466,8 @@ carry a changelog and to mark the contract the add-on can rely on.
 ```bash
 # 1. bump the version in package.json and commit
 # 2. tag it, matching exactly
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0.1
+git push origin v1.0.1
 ```
 
 The workflow refuses to publish if the tag and `package.json` disagree, since the
