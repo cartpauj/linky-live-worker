@@ -214,12 +214,14 @@ Three commands, for three different situations.
 | | What happens |
 | --- | --- |
 | `roll` | A new key is issued and the person's addresses move to it. Their old key stops working; every URL they registered keeps working |
-| `revoke` | Their addresses stop answering — `403` on every path, bypasses included — and nothing new can be provisioned. Hostnames stay reserved, and `restore` brings both back |
+| `revoke` | Their addresses stop answering — `403` on every path, bypasses included, within a minute — and nothing new can be provisioned. Hostnames stay reserved, and `restore` brings both back |
 | `remove` | The person and their addresses are deleted: tunnel, DNS record, Worker route and KV entries. Every URL they registered stops resolving |
 
 `revoke` reaches traffic that is already running because the gateway reads the
 owner's status from the hostname record, which `revoke` and `restore` rewrite. It
-costs no extra lookup per request.
+costs no extra lookup per request. That record is cached at the edge for up to 60
+seconds, so allow a minute for a revoke to take hold everywhere; restoring is
+immediate, since writing a key clears the cached copy.
 
 `remove` needs the Cloudflare API token, since deleting a tunnel, a DNS record
 and a route are all account operations:

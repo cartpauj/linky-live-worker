@@ -256,9 +256,14 @@ the key alone and stranding the resources.
 Row numbers exist for quick one-off use and are checked or confirmed, never acted
 on blindly. Add `--yes` to skip a prompt.
 
-Revoking takes effect at once, on running links as well as on new provisioning.
-The tunnel on that person's machine stays up; the gateway in front of it refuses
-every request, so nothing reaches the site.
+Revoking reaches running links, not just new provisioning. The tunnel on that
+person's machine stays up; the gateway in front of it refuses every request, so
+nothing reaches the site.
+
+Allow up to a minute for it to bite. The gateway reads the hostname record from
+KV, which is cached at each edge location for up to 60 seconds, so a request that
+just read the old value keeps being served from it until that expires. Restoring
+is immediate, because writing a key clears the cached copy.
 
 ### Several people managing it
 
