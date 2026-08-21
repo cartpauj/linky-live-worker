@@ -49,13 +49,17 @@ so it is the one placeholder you never copy by hand.
 wrangler validates syntax but not content, so a leftover placeholder otherwise
 surfaces later as an opaque Cloudflare error.
 
-Two things that are not obvious:
+Three things that are not obvious:
 
 - **The API token is one you create by hand** in the Cloudflare dashboard, with
   three specific permissions. No template matches; you want *Create Custom Token*.
 - **`wrangler secret put` prompts**, so it needs a real terminal. Without one it
   stores an empty secret silently, and provisioning later fails with
   `9106: Missing X-Auth-Key…`.
+- **It offers to create a Worker called `linky-live` — say yes.** A secret has to
+  belong to a Worker and this runs before the first deploy, so wrangler makes an
+  empty placeholder to hold it. `npm run deploy` uploads the real code over that
+  placeholder, and the secret survives.
 
 Check it is live — a `401` is the success case, meaning it is running and
 rejecting anonymous callers:

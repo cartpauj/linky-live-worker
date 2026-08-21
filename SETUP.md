@@ -110,6 +110,22 @@ attached it stores an **empty** secret without complaining, and the first attemp
 to provision a site fails with `9106: Missing X-Auth-Key, X-Auth-Email or
 Authorization headers`. The dashboard works too: Settings → Variables and Secrets.
 
+It also asks something alarming the first time:
+
+```
+✔ There doesn't seem to be a Worker called "linky-live". Do you want to create a
+  new Worker with that name and add secrets to it? … yes
+```
+
+**Say yes.** A secret belongs to a Worker, and this runs before the first deploy,
+so there is nothing to attach it to yet — wrangler creates an empty placeholder to
+hold it. `npm run deploy` then uploads the real code over that placeholder, and
+the secret stays where it is.
+
+The secret comes first only because it is the step that needs a terminal, and it
+is better done while you obviously have one. Setting it after `npm run deploy`
+works exactly the same and skips the question.
+
 `custom_domain = true` on the route makes Cloudflare create the DNS record and
 certificate for the API hostname itself. Verify — a `401` is the success case:
 
