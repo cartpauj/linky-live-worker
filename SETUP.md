@@ -105,6 +105,12 @@ both before deploying.
 Plain `wrangler deploy` still works, but attaches no custom domain — the Worker
 would then only answer on its `workers.dev` URL.
 
+`preview_urls = false` in the template turns off the per-version preview
+hostnames. Without it, wrangler warns on every deploy and creates one each time,
+and since any hostname that is not a provisioned `linky-*` site is served by the
+control plane, each is another way in to the API. They are still key-protected,
+so this closes surface rather than a hole.
+
 `wrangler secret put` prompts, so run it in a real terminal. With no terminal
 attached it stores an **empty** secret without complaining, and the first attempt
 to provision a site fails with `9106: Missing X-Auth-Key, X-Auth-Email or

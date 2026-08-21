@@ -11,7 +11,13 @@
 name = "linky-live"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
+
+# The workers.dev URL is kept as a way to reach the API if the custom domain is
+# ever misconfigured. Preview URLs are off: every deploy would otherwise mint
+# another versioned hostname, and anything that is not a provisioned linky-*
+# host is served by the control plane — more front doors to the API for no gain.
 workers_dev = true
+preview_urls = false
 
 
 # ── 1 ── Your Cloudflare account id: `npx wrangler whoami`

@@ -375,3 +375,17 @@ test('every command the scripts tell you to run is documented', () => {
 		assert.ok(pkg.scripts[name], `npm run ${name} is referenced but not defined`);
 	}
 });
+
+test('per-version preview URLs are turned off', () => {
+	const template = readFileSync('wrangler.example.toml', 'utf8');
+
+	// Any hostname that is not a provisioned linky-* site is served by the control
+	// plane, so each preview URL is another way in to the API. Left unset, wrangler
+	// enables them by default whenever workers_dev is on, and warns about it on
+	// every deploy.
+	assert.match(template, /^preview_urls\s*=\s*false/m, 'preview_urls must be explicitly off');
+
+	// The workers.dev URL is deliberately kept, as a route to the API that does not
+	// depend on the custom domain being right.
+	assert.match(template, /^workers_dev\s*=\s*true/m, 'workers_dev stays on');
+});
