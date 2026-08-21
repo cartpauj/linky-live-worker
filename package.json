@@ -1,0 +1,20 @@
+{
+  "name": "linky-live-worker",
+  "version": "1.0.0",
+  "description": "Control plane and auth gateway for Linky Live",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  },
+  "author": "cartpauj",
+  "license": "GPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cartpauj/linky-live-worker.git"
+  },
+  "homepage": "https://github.com/cartpauj/linky-live-worker"
+}

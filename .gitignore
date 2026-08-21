@@ -1,0 +1,14 @@
+node_modules/
+
+# Wrangler build output and local state.
+.wrangler/
+
+# Local secret overrides. CF_API_TOKEN belongs in `wrangler secret put`,
+# never in a file.
+.dev.vars
+wrangler.local.toml
+
+.DS_Store
+
+# Real configuration. Copy wrangler.example.toml and fill in your own values.
+wrangler.toml

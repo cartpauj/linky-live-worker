@@ -1,0 +1,81 @@
+# Linky Live Worker — configuration template.
+#
+# Copy this to wrangler.toml and fill in your own values. wrangler.toml is
+# gitignored, so your account details and keys never end up in the repo.
+#
+#   cp wrangler.example.toml wrangler.toml
+#
+# Full walkthrough: SETUP.md
+
+name = "linky-live"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# The Cloudflare account that owns the zone below. Find it with `wrangler whoami`.
+# Pinned explicitly because a login with access to several accounts will refuse to
+# guess, and a deploy must never land in the wrong one.
+account_id = "YOUR_ACCOUNT_ID"
+
+# Kept as a fallback for debugging. The API is protected by a key either way, and
+# the add-on points at the custom domain below rather than this.
+workers_dev = true
+
+[vars]
+# The zone your live links live on, e.g. example.com.
+ZONE_NAME = "YOUR_ZONE"
+
+# Allocated hostnames look like linky-k4d8vn.example.com.
+#
+# Keep this to a single DNS label. Cloudflare's free Universal SSL covers
+# example.com and *.example.com but nothing deeper, and wildcard certificates
+# only ever cover one level — so a nested shape like k4d8vn.linky.example.com
+# would need the paid Advanced Certificate Manager.
+HOSTNAME_PREFIX = "linky"
+
+# Must match `name` above. Used when registering a route for each allocated
+# hostname.
+WORKER_SCRIPT_NAME = "linky-live"
+
+CF_ACCOUNT_ID = "YOUR_ACCOUNT_ID"
+CF_ZONE_ID = "YOUR_ZONE_ID"
+
+# Who may use the add-on. One person per line, `Name = key`.
+#
+# The name is a label for your own reference and is never read by the Worker;
+# access is decided by the key alone. Deleting a line revokes that person
+# immediately.
+#
+# Generate a key with:
+#   openssl rand -base64 32 | tr '+/' '-_' | tr -d '=' | sed 's/^/linky_/'
+#
+# Note that `wrangler deploy` pushes whatever is written here, overwriting any
+# edit made in the dashboard. If you would rather manage people in the dashboard
+# alone, delete this block and set it as a secret instead:
+#
+#   wrangler secret put TEAM_KEYS
+#
+# A secret stays out of the repo and survives deploys, but cannot be read back.
+TEAM_KEYS = """
+# Alice = linky_replace_me
+"""
+
+# Stores the per-site records the gateway reads on every request.
+# Create it with `wrangler kv namespace create LINKY` and paste the id here.
+[[kv_namespaces]]
+binding = "LINKY"
+id = "YOUR_KV_NAMESPACE_ID"
+
+# The fixed hostname the add-on talks to.
+#
+# `custom_domain = true` makes Cloudflare create and manage the DNS record and
+# certificate itself, so there is nothing to add by hand. It is one specific
+# hostname, so it cannot affect anything else on the zone.
+#
+# Per-site hostnames are not listed here: the Worker creates a route for each one
+# as it provisions them.
+[[routes]]
+pattern = "linky-live.YOUR_ZONE"
+custom_domain = true
+
+# CF_API_TOKEN is a secret and never belongs in this file:
+#   wrangler secret put CF_API_TOKEN
