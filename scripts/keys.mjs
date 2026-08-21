@@ -280,7 +280,7 @@ Manage who may use the Linky Live add-on.
 revoke, restore and remove confirm first, naming who they matched. Add --yes to
 skip that.
 
-The fragment shown in `list` is what identifies a key — it never changes. A name
+The fragment shown by 'list' is what identifies a key — it never changes. A name
 works too, and a row number is accepted for quick use:
 
   …Qw8zT1        the fragment; preferred

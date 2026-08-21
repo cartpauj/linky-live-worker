@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
@@ -9,6 +10,38 @@ import test from 'node:test';
  */
 
 const source = readFileSync('scripts/keys.mjs', 'utf8');
+
+/**
+ * Every other test here reads the script as text, which cannot catch a syntax
+ * error — and the usage text is a template literal, so a stray backtick in it
+ * terminates the string and breaks the whole file. Parse and run it for real.
+ */
+test('the script parses', () => {
+	execFileSync(process.execPath, ['--check', 'scripts/keys.mjs'], { stdio: 'pipe' });
+});
+
+test('the script runs and prints usage', () => {
+	// Usage is the one path that needs no config and no network, so it is the
+	// cheapest end-to-end check that the file actually executes.
+	const out = execFileSync(process.execPath, ['scripts/keys.mjs', 'help'], {
+		encoding: 'utf8',
+		stdio: ['ignore', 'pipe', 'pipe'],
+	});
+
+	for (const command of ['issue', 'list', 'search', 'revoke', 'restore', 'remove']) {
+		assert.ok(out.includes(command), `usage must mention ${command}`);
+	}
+
+	// The fragment is the identifier we want people reaching for first.
+	assert.ok(out.indexOf('…') < out.indexOf('row number'), 'usage should lead with the fragment');
+});
+
+test('an unknown command exits non-zero', () => {
+	assert.throws(
+		() => execFileSync(process.execPath, ['scripts/keys.mjs', 'frobnicate'], { stdio: 'pipe' }),
+		/Command failed/,
+	);
+});
 
 test('names are unique, so a name is a safe way to refer to someone', () => {
 	// Without uniqueness, `remove "Alice"` becomes ambiguous the moment a second
