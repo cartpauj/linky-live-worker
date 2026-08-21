@@ -160,3 +160,30 @@ test('two people cannot be merged by giving them the same name', async () => {
 	assert.deepEqual(second.sites, []);
 });
 
+
+test('the status endpoint reports the deployed version', async () => {
+	const env = baseEnv({ TEAM_KEYS: 'Paul = linky_paulkey' });
+
+	const body = await (await status(env, 'linky_paulkey')).json();
+
+	// Operators need to know which build is live: a deploy affects everyone at
+	// once, and the Worker shares a wire contract with the add-on.
+	assert.match(body.version, /^\d+\.\d+\.\d+$/, `expected a semver, got ${body.version}`);
+
+	// It must come from package.json rather than a hand-maintained constant, or the
+	// two drift and the reported version becomes a lie.
+	const pkg = JSON.parse(await import('node:fs').then((fs) => fs.readFileSync('package.json', 'utf8')));
+
+	assert.equal(body.version, pkg.version, 'reported version must match package.json');
+});
+
+test('the version is not announced to anonymous callers', async () => {
+	const env = baseEnv({ TEAM_KEYS: 'Paul = linky_paulkey' });
+
+	const res = await status(env, 'wrong-key');
+	const body = await res.json();
+
+	// Telling a stranger which build is deployed only helps them fingerprint it.
+	assert.equal(res.status, 401);
+	assert.equal(body.version, undefined);
+});

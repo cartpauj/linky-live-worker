@@ -333,6 +333,44 @@ npx wrangler tail          # live logs
 A deploy applies to everyone at once, so verify against a real site before
 considering a change done.
 
+### Versioning
+
+`package.json` is the single source of truth. The bundler inlines it, so the
+Worker reports its own version on the authenticated `/v1/status` response:
+
+```bash
+curl -s https://linky-live.example.com/v1/status \
+  -H "Authorization: Bearer $YOUR_KEY"
+# {"ok": true, "version": "0.0.1", "sites": []}
+```
+
+That matters because a deploy affects everyone at once, and the Worker shares a
+wire contract with the add-on — the `X-Linky-Live` and `X-Local-Host` headers and
+the `/v1/*` endpoints. Being able to ask a running Worker which build it is makes
+that contract checkable rather than assumed.
+
+The version is only reported to authenticated callers; announcing it publicly
+would just help someone fingerprint the deployment.
+
+### Releasing
+
+Pushing a `vX.Y.Z` tag publishes a GitHub release. There is **no artifact** — the
+Worker is deployed from source with `wrangler deploy`, so a release exists to
+carry a changelog and to mark the contract the add-on can rely on.
+
+```bash
+# 1. bump the version in package.json and commit
+# 2. tag it, matching exactly
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The workflow refuses to publish if the tag and `package.json` disagree, since the
+Worker reports that version at runtime — a mismatch would have operators reading
+a version that was never deployed under that name.
+
+Publishing a release does **not** deploy anything. Deploys stay manual.
+
 ### CI
 
 Pushes and pull requests run the test suite, re-run the secret scan on its own so

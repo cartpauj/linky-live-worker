@@ -31,6 +31,17 @@ import {
 	putIngress,
 } from './cf.js';
 
+/*
+ * package.json is the single source of truth for the version; the bundler inlines
+ * it, so there is no second place to keep in sync.
+ *
+ * A default import with an explicit attribute is the form both toolchains accept:
+ * esbuild exposes no named exports from JSON, and Node requires the attribute.
+ */
+import pkg from '../package.json' with { type: 'json' };
+
+const VERSION = pkg.version;
+
 import { maybeRewrite } from './rewrite.js';
 
 import {
@@ -367,8 +378,8 @@ async function handleStatus(env, keyHash, url) {
 		const record = await env.LINKY.get(siteKey(keyHash, siteId), 'json');
 
 		return record
-			? json({ ok: true, site: publicView(record) })
-			: json({ ok: true, site: null });
+			? json({ ok: true, version: VERSION, site: publicView(record) })
+			: json({ ok: true, version: VERSION, site: null });
 	}
 
 	const list = await env.LINKY.list({ prefix: `site:${keyHash}:` });
@@ -382,7 +393,18 @@ async function handleStatus(env, keyHash, url) {
 		}
 	}
 
-	return json({ ok: true, sites });
+	/*
+	 * The version is reported here rather than on a public endpoint.
+	 *
+	 * Operators need to know which build is live, since a deploy affects everyone
+	 * at once and the Worker shares a wire contract with the add-on. Announcing it
+	 * to anonymous callers would only help someone fingerprint the deployment, and
+	 * the add-on is authenticated anyway.
+	 *
+	 * It comes from package.json, which the bundler inlines, so there is no second
+	 * place to keep in sync.
+	 */
+	return json({ ok: true, version: VERSION, sites });
 }
 
 async function handleControlPlane(request, env, url) {
