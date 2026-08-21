@@ -6,9 +6,13 @@ node_modules/
 # Local secret overrides. CF_API_TOKEN belongs in `wrangler secret put`,
 # never in a file.
 .dev.vars
-wrangler.local.toml
 
 .DS_Store
 
-# Real configuration. Copy wrangler.example.toml and fill in your own values.
-wrangler.toml
+# Real configuration, which carries account and zone ids.
+#
+# Ignored by pattern rather than by exact name so a variant — wrangler.local.toml,
+# wrangler.staging.toml — cannot be committed by accident. The template is the one
+# deliberate exception.
+wrangler*.toml
+!wrangler.example.toml
