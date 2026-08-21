@@ -271,6 +271,22 @@ Everything is stored in the shared KV namespace, so any number of admins can
 manage the same team. Each needs Cloudflare access to the account and a
 `wrangler.toml` with the same account, zone, and KV ids.
 
+**Send them your `wrangler.toml`.** It holds no credentials — the account id, the
+zone name and id, the KV namespace id, the Worker name and the subdomain, and
+nothing else. `CF_API_TOKEN` is stored on the Worker and never appears in the
+file. Those ids are not passwords, but they do name your account and zone and are
+no use to anyone without Cloudflare access, so hand the file over directly rather
+than posting it. It is gitignored, which is what keeps it out of the repo.
+
+With that file and `npx wrangler login`, a new admin can run `issue`, `list`,
+`search`, `sites`, `roll`, `revoke`, `restore` and `deploy`.
+
+**`remove` needs an API token as well**, since deleting a tunnel, a DNS record and
+a route are account operations that a wrangler login does not cover. Have each
+admin create their own with the three permissions from [step 2](#2-create-the-api-token)
+rather than sharing one — a token you can revoke on its own is worth the two
+minutes.
+
 Each person's key is a separate KV entry, so two admins issuing at the same time
 cannot clobber each other.
 

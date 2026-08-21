@@ -125,6 +125,8 @@ cp wrangler.example.toml wrangler.toml
 ```
 
 `wrangler.toml` is gitignored, so nothing account-specific ends up in the repo.
+It carries no credentials either, which is what makes it the thing to hand a
+co-admin — see [Several people managing it](SETUP.md#several-people-managing-it).
 
 Everything below is in `wrangler.toml`, which holds no credentials — only ids and
 hostnames. The one secret, `CF_API_TOKEN`, is set with `wrangler secret put`, and
