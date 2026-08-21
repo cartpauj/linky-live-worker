@@ -139,11 +139,41 @@ export async function deleteDnsRecordsByName(env, hostname) {
  * so `linky-*.example.com/*` is invalid, and the alternative (`*.example.com/*`) would
  * drag every other example.com subdomain through this Worker.
  */
-export function createWorkerRoute(env, hostname) {
-	return cfFetch(env, `/zones/${env.CF_ZONE_ID}/workers/routes`, {
-		method: 'POST',
-		body: JSON.stringify({ pattern: `${hostname}/*`, script: env.WORKER_SCRIPT_NAME }),
-	});
+export async function createWorkerRoute(env, hostname) {
+	/*
+	 * Checked here rather than left to Cloudflare.
+	 *
+	 * wrangler's `name` is build-time configuration and invisible at runtime, so
+	 * WORKER_SCRIPT_NAME repeats it. When the two disagree — or the var is missing
+	 * entirely — the deploy still succeeds and the failure only appears now, as a
+	 * Cloudflare error about an unknown script. Saying what to fix is far more use.
+	 */
+	if (!env.WORKER_SCRIPT_NAME) {
+		throw new Error(
+			'WORKER_SCRIPT_NAME is not set. Add it under [vars] in wrangler.toml, '
+			+ 'matching the `name` at the top of that file.',
+		);
+	}
+
+	try {
+		return await cfFetch(env, `/zones/${env.CF_ZONE_ID}/workers/routes`, {
+			method: 'POST',
+			body: JSON.stringify({ pattern: `${hostname}/*`, script: env.WORKER_SCRIPT_NAME }),
+		});
+	} catch (err) {
+		// Cloudflare reports this as a generic lookup failure, which gives no clue
+		// that two config values have drifted apart.
+		// Cloudflare words this as `script_not_found`, so allow either separator.
+		if (/script/i.test(err.message) && /not[ _]found|does not exist|invalid/i.test(err.message)) {
+			throw new Error(
+				`No Worker named "${env.WORKER_SCRIPT_NAME}" exists in this account. `
+				+ 'WORKER_SCRIPT_NAME in wrangler.toml must match the `name` at the top '
+				+ `of that file. (${err.message})`,
+			);
+		}
+
+		throw err;
+	}
 }
 
 export function deleteWorkerRoute(env, routeId) {

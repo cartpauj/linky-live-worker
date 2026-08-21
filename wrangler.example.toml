@@ -7,6 +7,8 @@
 #
 # Full walkthrough: SETUP.md
 
+# The name the Worker is deployed under. Whatever you choose here must be
+# repeated as WORKER_SCRIPT_NAME below — see the note there for why.
 name = "linky-live"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
@@ -32,8 +34,15 @@ ZONE_NAME = "YOUR_ZONE"
 # would need the paid Advanced Certificate Manager.
 HOSTNAME_PREFIX = "linky"
 
-# Must match `name` above. Used when registering a route for each allocated
-# hostname.
+# The same value as `name` at the top of this file.
+#
+# It has to be repeated because wrangler's `name` is build-time configuration and
+# is not visible to the running Worker. When a site is provisioned, the Worker
+# asks Cloudflare to route that hostname to a script *by name*, so it needs to
+# know its own name at runtime.
+#
+# Get this wrong and deploying still succeeds; provisioning a site then fails with
+# a Cloudflare error about an unknown script.
 WORKER_SCRIPT_NAME = "linky-live"
 
 CF_ACCOUNT_ID = "YOUR_ACCOUNT_ID"

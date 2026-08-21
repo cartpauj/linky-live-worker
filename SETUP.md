@@ -7,7 +7,9 @@ Trust seat, and no paid Workers plan involved.
 
 ---
 
-## 1. Pick the hostname shape
+## 1. What the hostnames look like
+
+Nothing to decide here — this is background for the choices further down.
 
 Allocated addresses look like:
 
@@ -15,11 +17,19 @@ Allocated addresses look like:
 https://linky-k4d8vn.example.com
 ```
 
-**One DNS label, deliberately.** Universal SSL covers `example.com` and
-`*.example.com`, but nothing deeper — and wildcard certificates only ever cover a
-single level. A nested shape like `k4d8vn.linky.example.com` would need Advanced
-Certificate Manager (a paid add-on) to get a working certificate. The `linky-`
-prefix gives the same visual grouping for free.
+**The one part you choose is the prefix** (`HOSTNAME_PREFIX`, step 4). The random
+six characters and the flat shape are fixed.
+
+The shape is flat rather than nested because of certificates. Cloudflare's free
+Universal SSL covers `example.com` and `*.example.com` but nothing deeper, and
+wildcard certificates only ever cover a single level — so `k4d8vn.linky.example.com`
+would have no valid certificate without Advanced Certificate Manager, a paid
+add-on. A `linky-` prefix gives the same visual grouping for free.
+
+You also choose the **zone** these are created on (step 4). Anything you own and
+have on Cloudflare works. Worth knowing before you pick: the API token in step 2
+can edit DNS across that whole zone, so a domain that hosts nothing else keeps the
+blast radius smaller than your main one.
 
 ## 2. Create the API token
 
@@ -54,20 +64,44 @@ main reason the worker exists at all.
 
 ## 4. Configure and deploy
 
+Start from the template. `wrangler.toml` is gitignored, so your own values never
+end up in the repo.
+
 ```bash
+cp wrangler.example.toml wrangler.toml
 npm install
 
-# Create the KV namespace and copy the printed id into wrangler.toml
+# Prints an id — paste it into the [[kv_namespaces]] block
 npx wrangler kv namespace create LINKY
+```
 
-# Fill in CF_ACCOUNT_ID, CF_ZONE_ID and the KV id
-$EDITOR wrangler.toml
+Now edit `wrangler.toml`. Every field is commented in place; these are the ones
+you must change:
 
-# Store the API token as a secret
+| Field | Value |
+| --- | --- |
+| `name` | What to call the Worker, e.g. `linky-live` |
+| `WORKER_SCRIPT_NAME` | The same value again (see the note in the file) |
+| `account_id` and `CF_ACCOUNT_ID` | Your account id, from step 3 |
+| `ZONE_NAME` | The domain, e.g. `example.com` |
+| `CF_ZONE_ID` | That zone's id, from step 3 |
+| `HOSTNAME_PREFIX` | The prefix for generated hostnames, e.g. `linky` |
+| `[[kv_namespaces]]` `id` | The id just printed |
+| `[[routes]]` `pattern` | The API hostname, e.g. `linky-live.example.com` |
+| `TEAM_KEYS` | At least one `Name = key` line (step 7) |
+
+Then the token and the deploy:
+
+```bash
 npx wrangler secret put CF_API_TOKEN
-
 npx wrangler deploy
 ```
+
+`wrangler secret put` prompts for the value, so run it in a real terminal — with
+no terminal attached it stores an **empty** secret without complaining, and the
+first attempt to provision a site then fails with
+`9106: Missing X-Auth-Key, X-Auth-Email or Authorization headers`. The dashboard
+works too: Settings → Variables and Secrets.
 
 ## 5. The API hostname
 

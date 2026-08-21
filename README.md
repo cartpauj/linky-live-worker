@@ -71,15 +71,31 @@ cp wrangler.example.toml wrangler.toml
 
 `wrangler.toml` is gitignored, so nothing account-specific ends up in the repo.
 
-| Setting | What it is |
-| --- | --- |
-| `name` | Worker name. Must match `WORKER_SCRIPT_NAME` |
-| `account_id`, `CF_ACCOUNT_ID` | Your Cloudflare account (`wrangler whoami`) |
-| `ZONE_NAME`, `CF_ZONE_ID` | The zone links are created on |
-| `HOSTNAME_PREFIX` | Prefix for generated hostnames: `linky` gives `linky-k4d8vn.example.com` |
-| `TEAM_KEYS` | Who may use the add-on, one `Name = key` per line |
-| `[[kv_namespaces]]` `id` | From `wrangler kv namespace create LINKY` |
-| `[[routes]]` `pattern` | The fixed hostname the add-on talks to |
+Everything below is in `wrangler.toml`.
+
+| Setting | Where | What it is |
+| --- | --- | --- |
+| `name` | top level | The name the Worker deploys under |
+| `WORKER_SCRIPT_NAME` | `[vars]` | The same value again — see below |
+| `account_id` | top level | Which account to deploy into (`wrangler whoami`) |
+| `CF_ACCOUNT_ID` | `[vars]` | The same account id, for the Worker's own API calls |
+| `ZONE_NAME` | `[vars]` | The domain links are created on, e.g. `example.com` |
+| `CF_ZONE_ID` | `[vars]` | That zone's id, from its Cloudflare overview page |
+| `HOSTNAME_PREFIX` | `[vars]` | `linky` gives `linky-k4d8vn.example.com` |
+| `TEAM_KEYS` | `[vars]` | Who may use the add-on, one `Name = key` per line |
+| `id` | `[[kv_namespaces]]` | From `wrangler kv namespace create LINKY` |
+| `pattern` | `[[routes]]` | The fixed hostname the add-on talks to |
+
+### Why some values appear twice
+
+`name` and `account_id` are wrangler's own build-time settings and are **not
+visible to the running Worker**. But the Worker makes Cloudflare API calls of its
+own — creating a tunnel, a DNS record, and a route for each site it provisions —
+so it needs the same facts at runtime. That is what `WORKER_SCRIPT_NAME` and
+`CF_ACCOUNT_ID` are for.
+
+Keep each pair identical. A mismatch still deploys cleanly; it fails later, when
+provisioning a site, with a Cloudflare error about an unknown script or account.
 
 `CF_API_TOKEN` is a secret and never goes in the file:
 
