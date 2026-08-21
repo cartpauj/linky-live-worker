@@ -18,6 +18,45 @@ You need both halves: this Worker, and the
 [Linky Live](https://github.com/cartpauj/linky-live) add-on that your team
 installs into Local.
 
+## Quick start
+
+You need a Cloudflare account and a domain on it. Everything here fits in the
+free tier.
+
+```bash
+git clone https://github.com/cartpauj/linky-live-worker.git
+cd linky-live-worker
+
+cp wrangler.example.toml wrangler.toml
+npx wrangler login
+
+npx wrangler kv namespace create LINKY     # paste the printed id into wrangler.toml
+$EDITOR wrangler.toml                      # account id, zone, hostname, a team key
+
+npx wrangler secret put CF_API_TOKEN       # needs a real terminal — see below
+npx wrangler deploy
+```
+
+Two things that are not obvious:
+
+- **The API token is one you create by hand** in the Cloudflare dashboard, with
+  three specific permissions. No template matches; you want *Create Custom Token*.
+- **`wrangler secret put` prompts**, so it needs a real terminal. Without one it
+  stores an empty secret silently, and provisioning later fails with
+  `9106: Missing X-Auth-Key…`.
+
+Check it is live — a `401` is the success case, meaning it is running and
+rejecting anonymous callers:
+
+```bash
+curl -s https://linky-live.example.com/v1/status
+```
+
+Then install the [Linky Live](https://github.com/cartpauj/linky-live) add-on in
+Local and give it that hostname and a key.
+
+**[`SETUP.md`](SETUP.md) has the full steps**, including the token permissions.
+
 ## Architecture
 
 ```
@@ -115,42 +154,12 @@ Full walkthrough in [`SETUP.md`](SETUP.md).
 
 ## Adding people
 
-One key per person, **not** per site. A person's single key works on every site
-they touch.
+One key per person, not per site. Keys live in the `TEAM_KEYS` variable, edited
+in the Cloudflare dashboard — add a line to onboard someone, delete it to revoke
+them, no deploy needed.
 
-**Workers & Pages → linky-live-links → Settings → Variables → `TEAM_KEYS`**
-
-```
-# Company live link keys
-Paul = linky_EXAMPLE_KEY_REPLACE_ME
-Dave = linky_EXAMPLE_KEY_REPLACE_ME
-```
-
-- **Add someone** → add a line, save, send them the key.
-- **Revoke someone** → delete their line, save. Locked out immediately.
-- **See who has access** → read the field.
-
-Saving redeploys automatically. Generate a key with:
-
-```bash
-openssl rand -base64 32 | tr '+/' '-_' | tr -d '=' | sed 's/^/linky_/'
-```
-
-Names are **labels only** — never read by the worker. Identity is
-`sha256(key)`, so you can rename someone freely without orphaning their sites.
-The parser is deliberately forgiving (`=` or `:`, newlines or commas, `#`
-comments) so a typo cannot lock out the whole team.
-
-### Only admins can add or revoke keys
-
-Keys live in a Cloudflare dashboard variable, which requires account access to
-edit. No HTTP endpoint creates, lists, or revokes one, so a leaked teammate key
-cannot mint more. The Worker only ever reads that variable.
-
-A teammate key can only allocate/reuse a hostname for **its own** sites, change
-those sites' credentials and bypass paths, and release those hostnames. It cannot
-see another person's sites and never receives the Cloudflare API token.
-`worker/test/key-boundary.test.mjs` asserts all of it.
+Full details, including why key management is deliberately dashboard-only, are in
+[`SETUP.md`](SETUP.md#7-add-people).
 
 ## Worker API
 
