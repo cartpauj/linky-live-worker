@@ -293,6 +293,12 @@ silently fails to match loses webhooks invisibly — which stays invisible until
 payment goes astray. Keep entries as specific as the listener allows, since each
 one opens everything beneath it.
 
+**A caller's `Authorization` header reaches the site** on a bypassed path, so an
+endpoint that authenticates from a Bearer token or reads an API key out of that
+header works through a link. A header carrying the gateway password is stripped
+instead, bypassed or not: it is ours, and a plugin reading `Authorization` as an
+API key must never be handed the password guarding the whole site.
+
 **An entry may pin query parameters**, which is the only way to whitelist a
 listener living at a query string, and the only way to open `/` narrowly:
 

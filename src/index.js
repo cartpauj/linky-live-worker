@@ -470,7 +470,9 @@ async function handleGateway(request, env, url, record) {
 	const assetBypassed = assetsPublic && isPublicAsset(url.pathname);
 	const bypassed = pathBypassed || assetBypassed;
 
-	if (!bypassed && !checkBasicAuth(request, record.authUser, record.authPass)) {
+	const authenticated = checkBasicAuth(request, record.authUser, record.authPass);
+
+	if (!bypassed && !authenticated) {
 		return new Response('Authentication required.\n', {
 			status: 401,
 			headers: {
@@ -482,8 +484,20 @@ async function handleGateway(request, env, url, record) {
 
 	const headers = new Headers(request.headers);
 
-	// The origin has no use for our gateway credentials.
-	headers.delete('Authorization');
+	/*
+	 * Our credentials are stripped; a caller's are forwarded.
+	 *
+	 * A bypassed request never had its Authorization checked here, so the header is
+	 * the caller's own — a Bearer token, or an API key some endpoint reads from it.
+	 * Those are the senders a bypass exists for, and deleting the header made them
+	 * unauthenticated at the site no matter what they sent.
+	 *
+	 * A header that does match the gateway password is ours and goes no further,
+	 * whether or not the path was bypassed.
+	 */
+	if (!bypassed || authenticated) {
+		headers.delete('Authorization');
+	}
 
 	// Lets the site's mu-plugin rewrite URLs to the public hostname, and tells it
 	// the request genuinely arrived through the tunnel.
@@ -527,7 +541,7 @@ async function handleGateway(request, env, url, record) {
 		bypassed &&
 		upstream.status === 404 &&
 		(upstream.headers.get('Content-Type') || '').toLowerCase().includes('text/html') &&
-		!checkBasicAuth(request, record.authUser, record.authPass)
+		!authenticated
 	) {
 		return new Response('Not found\n', {
 			status: 404,

@@ -441,3 +441,56 @@ test('an owner with no flag on the record still serves', async () => {
 	assert.equal(res.status, 200);
 	assert.equal(calls.length, 1, 'the request reached the origin');
 });
+
+test("a bypassed request's own Authorization reaches the site", async () => {
+	const env = makeEnv({ [`host:${HOST}`]: hostRecord });
+
+	// Plenty of endpoints authenticate from this header — a Bearer token, or an API
+	// key read straight out of it. Those senders are the reason a bypass exists, so
+	// the header has to survive the hop.
+	for (const header of ['Bearer sk_live_example', 'EWHYexamplekey']) {
+		const calls = stubFetch();
+
+		const res = await worker.fetch(
+			new Request(`https://${HOST}/mepr/notify`, { method: 'POST', headers: { Authorization: header } }),
+			env,
+		);
+
+		assert.equal(res.status, 200);
+		assert.equal(calls[0].headers.get('Authorization'), header, `${header} must be forwarded`);
+	}
+});
+
+test('the gateway password is never forwarded, bypassed path or not', async () => {
+	const env = makeEnv({ [`host:${HOST}`]: hostRecord });
+
+	// Ours, so the site has no use for it — and a plugin reading Authorization as
+	// an API key must not be handed the password that guards the whole site.
+	for (const path of ['/', '/mepr/notify']) {
+		const calls = stubFetch();
+
+		await worker.fetch(
+			new Request(`https://${HOST}${path}`, {
+				headers: { Authorization: basic('cedar', 'heron-42') },
+			}),
+			env,
+		);
+
+		assert.equal(calls[0].headers.get('Authorization'), null, `${path} must not leak it`);
+	}
+});
+
+test('an asset let through by its extension forwards nothing of ours', async () => {
+	const calls = stubFetch();
+	const env = makeEnv({ [`host:${HOST}`]: hostRecord });
+
+	// The asset allowlist is a bypass too, so the same rule applies to it.
+	await worker.fetch(
+		new Request(`https://${HOST}/wp-content/themes/x/style.css`, {
+			headers: { Authorization: basic('cedar', 'heron-42') },
+		}),
+		env,
+	);
+
+	assert.equal(calls[0].headers.get('Authorization'), null);
+});
