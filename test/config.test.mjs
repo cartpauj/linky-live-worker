@@ -74,8 +74,9 @@ test('the template pairs the duplicated values consistently', () => {
 	// Someone copying the template should not start out with a mismatch.
 	assert.equal(script, name, 'WORKER_SCRIPT_NAME must match name in the template');
 
-	// And the duplication must be explained where it is written.
-	assert.match(template, /not visible to the running Worker/, 'template must explain why it repeats');
+	// And the duplication must be explained where it is written, since that is
+	// where someone notices it.
+	assert.match(template, /cannot see/, 'template must explain why it repeats');
 });
 
 test('the checker requires exactly the values the Worker reads', () => {
@@ -122,26 +123,49 @@ test('every placeholder in the template is something the checker catches', () =>
 	}
 });
 
-test('the setup doc names every placeholder in the template', () => {
+test('every placeholder is numbered and explained in the template', () => {
 	const template = readFileSync('wrangler.example.toml', 'utf8');
-	const setup = readFileSync('SETUP.md', 'utf8');
+	const lines = template.split('\n');
 
-	// A placeholder the doc never mentions is one the reader will leave in place
-	// and then hit as an opaque Cloudflare error.
-	const placeholders = new Set(
-		[...template.matchAll(/^\s*([A-Za-z_]+)\s*=\s*"[^"]*YOUR_[^"]*"/gm)].map((m) => m[1]),
-	);
+	// The template is where someone is looking while they edit, so each placeholder
+	// has to carry its own instruction there. An unexplained one gets left in place
+	// and surfaces later as an opaque Cloudflare error.
+	const placeholders = [];
 
-	assert.ok(placeholders.size >= 6, `expected at least 6 placeholders, found ${placeholders.size}`);
+	lines.forEach((line, i) => {
+		const match = line.match(/^\s*([A-Za-z_]+)\s*=\s*"[^"]*YOUR_[^"]*"/);
 
-	for (const key of placeholders) {
-		assert.ok(setup.includes(key), `SETUP.md never mentions ${key}`);
+		if (!match) {
+			return;
+		}
+
+		// The explanation is the comment block immediately above.
+		const above = lines.slice(Math.max(0, i - 3), i).filter((l) => l.trim().startsWith('#'));
+
+		placeholders.push({ key: match[1], comment: above.join(' ') });
+	});
+
+	assert.equal(placeholders.length, 6, `expected 6 placeholders, found ${placeholders.length}`);
+
+	for (const { key, comment } of placeholders) {
+		assert.match(comment, /──\s*\d\s*──/, `${key} must carry a numbered marker`);
+		assert.ok(comment.replace(/[#─\d\s]/g, '').length > 12, `${key} must say what to put there`);
 	}
 
-	// And the doc's count has to match reality, or it goes stale silently.
-	assert.match(
-		setup,
-		new RegExp(`\\*\\*${placeholders.size} placeholders\\*\\*|\\*\\*six placeholders\\*\\*`, 'i'),
-		`SETUP.md should state there are ${placeholders.size} placeholders`,
-	);
+	// Numbered in the order they are filled, so following them top to bottom works.
+	const numbers = placeholders.map((p) => Number(p.comment.match(/──\s*(\d)\s*──/)[1]));
+
+	assert.deepEqual(numbers, [1, 2, 3, 4, 5, 6], 'markers must run 1-6 in file order');
+});
+
+test('the setup doc points at the numbering rather than restating it', () => {
+	const setup = readFileSync('SETUP.md', 'utf8');
+
+	// Listing every field in both places is how the two drifted apart before.
+	assert.match(setup, /six placeholders/i, 'the doc must say how many there are');
+	assert.match(setup, /── 1 ──/, 'and refer to the markers in the file');
+
+	// The one ordering constraint cannot be inferred from the file alone.
+	assert.match(setup, /after step 1/, 'must say the KV step comes after the account id');
+	assert.match(setup, /7003/, 'and name the error it causes');
 });

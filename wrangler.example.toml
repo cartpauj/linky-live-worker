@@ -1,71 +1,55 @@
-# Linky Live Worker — configuration template.
-#
-# Copy this to wrangler.toml and fill in your own values. wrangler.toml is
-# gitignored, so your account details and keys never end up in the repo.
+# Linky Live Worker configuration.
 #
 #   cp wrangler.example.toml wrangler.toml
 #
-# Full walkthrough: SETUP.md
+# Then replace the six YOUR_… values below, numbered in the order you fill them.
+# Check your work with `npm run check`. Full walkthrough in SETUP.md.
 
-# The name the Worker is deployed under. Whatever you choose here must be
-# repeated as WORKER_SCRIPT_NAME below — see the note there for why.
+
+# ── Fixed. Change only if you want a different Worker name. ──────────────────
 name = "linky-live"
 main = "src/index.js"
 compatibility_date = "2026-08-01"
-
-# The Cloudflare account that owns the zone below. Find it with `wrangler whoami`.
-# Pinned explicitly because a login with access to several accounts will refuse to
-# guess, and a deploy must never land in the wrong one.
-account_id = "YOUR_ACCOUNT_ID"
-
-# Kept as a fallback for debugging. The API is protected by a key either way, and
-# the add-on points at the custom domain below rather than this.
 workers_dev = true
 
+
+# ── 1 ── Your Cloudflare account id: `npx wrangler whoami`
+account_id = "YOUR_ACCOUNT_ID"
+
+
 [vars]
-# The zone your live links live on, e.g. example.com.
+
+# ── 2 ── The same account id again. The Worker cannot see the one above.
+CF_ACCOUNT_ID = "YOUR_ACCOUNT_ID"
+
+# ── 3 ── The domain your links live on, e.g. example.com
 ZONE_NAME = "YOUR_ZONE"
 
-# Allocated hostnames look like linky-k4d8vn.example.com.
-#
-# Keep this to a single DNS label. Cloudflare's free Universal SSL covers
-# example.com and *.example.com but nothing deeper, and wildcard certificates
-# only ever cover one level — so a nested shape like k4d8vn.linky.example.com
-# would need the paid Advanced Certificate Manager.
-HOSTNAME_PREFIX = "linky"
-
-# The same value as `name` at the top of this file.
-#
-# It has to be repeated because wrangler's `name` is build-time configuration and
-# is not visible to the running Worker. When a site is provisioned, the Worker
-# asks Cloudflare to route that hostname to a script *by name*, so it needs to
-# know its own name at runtime.
-#
-# Get this wrong and deploying still succeeds; provisioning a site then fails with
-# a Cloudflare error about an unknown script.
-WORKER_SCRIPT_NAME = "linky-live"
-
-CF_ACCOUNT_ID = "YOUR_ACCOUNT_ID"
+# ── 4 ── That zone's id, from its Cloudflare overview page
 CF_ZONE_ID = "YOUR_ZONE_ID"
 
-# Stores who may use the add-on, and the per-site records the gateway reads on
-# every request. Manage people with `npm run keys` — nothing here is a credential.
-# Create it with `wrangler kv namespace create LINKY` and paste the id here.
+# Fixed. Must match `name` above; the Worker cannot see that either.
+WORKER_SCRIPT_NAME = "linky-live"
+
+# Fixed. Gives hostnames like linky-k4d8vn.example.com
+HOSTNAME_PREFIX = "linky"
+
+
 [[kv_namespaces]]
 binding = "LINKY"
+
+# ── 5 ── From `npx wrangler kv namespace create LINKY`, after step 1
 id = "YOUR_KV_NAMESPACE_ID"
 
-# The fixed hostname the add-on talks to.
-#
-# `custom_domain = true` makes Cloudflare create and manage the DNS record and
-# certificate itself, so there is nothing to add by hand. It is one specific
-# hostname, so it cannot affect anything else on the zone.
-#
-# Per-site hostnames are not listed here: the Worker creates a route for each one
-# as it provisions them.
+
 [[routes]]
+
+# ── 6 ── The hostname the add-on talks to, e.g. linky-live.example.com
 pattern = "linky-live.YOUR_ZONE"
+
+# Fixed. Lets Cloudflare create the DNS record and certificate for it.
 custom_domain = true
 
-# CF_API_TOKEN is a secret and never belongs in this file:
-#   wrangler secret put CF_API_TOKEN
+
+# CF_API_TOKEN is a secret and never goes in this file:
+#   npx wrangler secret put CF_API_TOKEN
