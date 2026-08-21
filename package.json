@@ -1,6 +1,6 @@
 {
   "name": "linky-live-worker",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Control plane and auth gateway for Linky Live",
   "scripts": {
     "deploy": "wrangler deploy",

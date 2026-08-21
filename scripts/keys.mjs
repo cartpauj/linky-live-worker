@@ -270,25 +270,26 @@ const arg = positional.join(' ').trim();
 const USAGE = `
 Manage who may use the Linky Live add-on.
 
-  node scripts/keys.mjs issue "Alice"     Generate a key and print it once
-  node scripts/keys.mjs list              Show everyone, numbered
-  node scripts/keys.mjs search alice      Show matches, keeping those numbers
-  node scripts/keys.mjs revoke 3          Block them, keeping the record
-  node scripts/keys.mjs restore 3         Undo a revoke
-  node scripts/keys.mjs remove 3          Delete the record entirely
+  node scripts/keys.mjs issue "Alice"       Generate a key and print it once
+  node scripts/keys.mjs list                Show everyone, with a fragment each
+  node scripts/keys.mjs search alice        Same, filtered
+  node scripts/keys.mjs revoke …Qw8zT1      Block them, keeping the record
+  node scripts/keys.mjs restore …Qw8zT1     Undo a revoke
+  node scripts/keys.mjs remove …Qw8zT1      Delete the record entirely
 
 revoke, restore and remove confirm first, naming who they matched. Add --yes to
 skip that.
 
-revoke, restore and remove accept, safest first:
+The fragment shown in `list` is what identifies a key — it never changes. A name
+works too, and a row number is accepted for quick use:
 
-  …Qw8zT1        the key fragment alone
-  3 Qw8zT1       a number, checked against that fragment
-  3              a number alone, confirmed by name
-  "Alice"        a name, confirmed by name
+  …Qw8zT1        the fragment; preferred
+  "Alice"        a name
+  3 Qw8zT1       a row number, checked against that fragment
+  3              a row number alone, confirmed by name
 
-Numbers shift if someone else adds or removes a key, so pairing a number with
-the fragment beside it is checked rather than trusted. --yes skips prompts.
+Row numbers move when anyone adds or removes a key, so they are checked or
+confirmed rather than trusted. --yes skips prompts.
 `;
 
 if (!command || command === 'help' || command === '--help') {

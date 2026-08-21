@@ -113,13 +113,17 @@ sites. Keys live in KV, so nothing here needs a deploy and nothing lands in a
 config file.
 
 ```bash
-npm run keys issue "Alice"     # generates a key and prints it once
-npm run keys list              # everyone, numbered
-npm run keys search alice      # matches, keeping those numbers
-npm run keys revoke 3          # block, keeping the record
-npm run keys restore 3         # undo a revoke
-npm run keys remove 3          # delete the record
+npm run keys issue "Alice"          # generates a key and prints it once
+npm run keys list                   # everyone, with a key fragment each
+npm run keys search alice           # same, filtered
+
+npm run keys revoke …Qw8zT1         # block, keeping the record
+npm run keys restore …Qw8zT1        # undo a revoke
+npm run keys remove …Qw8zT1         # delete the record
 ```
+
+The fragment shown in `list` is what identifies someone. It never changes, so it
+is unambiguous even when several people are making changes at once.
 
 You supply a name; the key is generated and printed **together with your service
 hostname**, so you can send someone everything they need in one message:
@@ -134,9 +138,10 @@ Key for Alice — send both lines:
 Names must be unique. `issue` refuses a name that is taken and shows how to roll
 it, which is what keeps `remove "Alice"` unambiguous.
 
-Listings show the name, status, date, and the **last six characters** of the key —
-enough to answer "which of these is mine?" when one person has keys on several
-machines. The key itself is never stored, so a lost key is rolled:
+Listings show the name, status, date, and the **last six characters** of the key.
+That fragment is both how you answer "which of these is mine?" when one person has
+keys on several machines, and how you refer to a key in the commands above. The
+key itself is never stored, so a lost key is rolled:
 
 ```bash
 npm run keys remove "Alice" && npm run keys issue "Alice"
@@ -146,12 +151,13 @@ npm run keys remove "Alice" && npm run keys issue "Alice"
 
 | Form | Behaviour |
 | --- | --- |
-| `remove …Qw8zT1` | The key fragment alone. Cannot be ambiguous, so it acts immediately |
-| `remove 3 Qw8zT1` | A number, checked against the fragment printed beside it |
-| `remove 3` | A number alone, confirmed by naming who it matched |
-| `remove "Alice"` | A name, confirmed the same way |
+| `remove …Qw8zT1` | **Preferred.** The fragment identifies one key and never changes |
+| `remove "Alice"` | A name, confirmed by naming who it matched |
+| `remove 3 Qw8zT1` | A row number, checked against the fragment beside it |
+| `remove 3` | A row number alone, confirmed by naming who it matched |
 
-Add `--yes` to skip a prompt.
+Row numbers exist for quick one-off use and are checked or confirmed, never acted
+on blindly. Add `--yes` to skip a prompt.
 
 Revoking blocks new provisioning at once. Links already running keep running
 until stopped, so release any hostnames you also want reclaimed.

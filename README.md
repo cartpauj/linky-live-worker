@@ -161,12 +161,12 @@ One key per person, not per site. Keys live in KV and are managed from the
 terminal, so nothing needs a deploy and no credential goes in a config file.
 
 ```bash
-npm run keys issue "Alice"     # generates a key and prints it once
-npm run keys list              # everyone, numbered
-npm run keys search alice      # matches, keeping those numbers
-npm run keys revoke 3          # block, keeping the record
-npm run keys restore 3         # undo a revoke
-npm run keys remove 3          # delete the record
+npm run keys issue "Alice"          # generates a key and prints it once
+npm run keys list                   # everyone, with a key fragment each
+npm run keys search alice           # same, filtered
+npm run keys revoke …Qw8zT1         # block, keeping the record
+npm run keys restore …Qw8zT1        # undo a revoke
+npm run keys remove …Qw8zT1         # delete the record
 ```
 
 You supply a unique name; the key is generated and printed alongside your service
@@ -174,10 +174,11 @@ hostname, so both halves can be sent in one message. Listings show names, status
 and the last six characters of each key — never the key itself, which is stored
 only as a hash. A lost key is rolled, not recovered.
 
-Destructive commands take the key fragment as well as, or instead of, the number:
-`remove 3 Qw8zT1` verifies that `#3` still holds that fragment, and
-`remove …Qw8zT1` skips numbering altogether. That matters when several admins
-share the list — see [`SETUP.md`](SETUP.md#several-people-managing-it).
+Keys are referred to by that fragment, which never changes. A name works too, and
+a row number from `list` is accepted for quick one-off use — checked against the
+fragment if you pass both, confirmed by name if you do not. That distinction
+matters when several admins share the list, since row numbers move when anyone
+adds or removes a key: see [`SETUP.md`](SETUP.md#several-people-managing-it).
 
 Only a SHA-256 of each key is stored, so a key can be verified but never read
 back. Any number of admins can manage the same team — see
