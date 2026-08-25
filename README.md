@@ -220,9 +220,13 @@ npm run admins init                 # makes that address the first owner
 ```
 
 It prints a one-time password. Sign in with it once and the page requires you to
-choose your own before it will do anything else. Passwords are PBKDF2-SHA256 with
-210,000 iterations, and the parameters are stored beside each hash so raising
-that later keeps every existing password working.
+choose your own before it will do anything else.
+
+Passwords are PBKDF2-SHA256 at 100,000 iterations — the ceiling Workers enforce,
+not a number chosen for its own sake; anything higher is refused outright at
+runtime. The parameters are stored beside each hash, so changing the count later
+keeps every existing password working and re-hashes each one at its owner's next
+sign-in.
 
 **`access`** — Cloudflare Zero Trust in front of `/admin`, with Google, Okta, or
 any other identity provider behind it. No password is stored anywhere. Set
