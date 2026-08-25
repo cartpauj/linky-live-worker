@@ -194,7 +194,7 @@ and rejecting anonymous callers:
 
 ```bash
 curl -s https://linky-live.example.com/v1/status
-# {"ok": false, "error": "Invalid or missing API key."}
+# {"ok": false, "error": "Missing API key. The add-on sends it as an Authorization: Bearer header."}
 ```
 
 Full walkthrough in [`SETUP.md`](SETUP.md).
@@ -543,6 +543,15 @@ and lays that over the server's answer until the server agrees, which is why a
 new row appears at once rather than after a reload. Notes expire, so a wrong
 assumption cannot outlive the tab, and they are only taken once a write has
 actually succeeded.
+
+**Copy the key line on its own, not the whole block.** The admin UI shows a
+service line and a key line together; the button copies the key alone for this
+reason. Pasting both into the add-on's single-line key field flattens them into
+one string that still *ends* in the key's last six characters — so the fragment
+the add-on shows matches the fragment on the server, and the one check anybody
+would run says everything is fine while nothing works. The API now answers a
+value of that shape with "that does not look like a Linky Live key" rather than
+"invalid key", so the mistake names itself.
 
 **There is no password reset by email.** Nothing here sends mail. An admin who
 loses their password is rescued from a terminal with

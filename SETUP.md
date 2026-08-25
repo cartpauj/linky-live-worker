@@ -137,7 +137,7 @@ certificate for the API hostname itself. Verify — a `401` is the success case:
 
 ```bash
 curl -s https://linky-live.example.com/v1/status
-# {"ok": false, "error": "Invalid or missing API key."}
+# {"ok": false, "error": "Missing API key. The add-on sends it as an Authorization: Bearer header."}
 ```
 
 A fresh custom domain can return `500` (`error code: 1104`) for a few seconds
