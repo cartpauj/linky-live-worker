@@ -244,6 +244,121 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 		});
 	}
 
+	/* ---------------------------------------------------------------- *
+	 * Surviving an eventually-consistent store
+	 *
+	 * KV does not promise that a read sees a write that has just succeeded. In
+	 * practice a newly issued key is missing from the listing for the better part
+	 * of ten seconds, so redrawing straight after a change showed the state from
+	 * before it. The change looked as though it had been ignored, and only a
+	 * later reload brought it back.
+	 *
+	 * The write did happen; what is stale is the read. So the page keeps a note of
+	 * what it just did and lays that over whatever the server returns, until the
+	 * server agrees — at which point the note is dropped and the server is
+	 * authoritative again. Notes expire too, so a wrong assumption cannot outlive
+	 * the tab.
+	 *
+	 * Held in sessionStorage rather than a variable, because reloading the page
+	 * inside the stale window is exactly when somebody goes looking for the row
+	 * they just created.
+	 * ---------------------------------------------------------------- */
+
+	var PENDING_TTL_MS = 120000;
+	var PENDING_STORE = 'linky_pending';
+
+	function loadPending() {
+		try {
+			var raw = sessionStorage.getItem(PENDING_STORE);
+			var parsed = raw ? JSON.parse(raw) : null;
+
+			if (parsed && parsed.users && parsed.accounts) { return parsed; }
+		} catch (e) {
+			// Private windows and blocked site data both throw here. The overlay is
+			// an improvement, not a requirement, so losing it is not an error.
+		}
+
+		return { users: {}, accounts: {} };
+	}
+
+	var pending = loadPending();
+
+	function savePending() {
+		try {
+			sessionStorage.setItem(PENDING_STORE, JSON.stringify(pending));
+		} catch (e) { /* see loadPending */ }
+	}
+
+	/** Note something we just did that the server may not report yet. */
+	function remember(kind, id, entry) {
+		entry.at = Date.now();
+		pending[kind][id] = entry;
+		savePending();
+	}
+
+	/* --8<-- reconcile: pure and DOM-free, so the test suite can drive it --8<-- */
+	function rowMatches(row, patch) {
+		return Object.keys(patch).every(function (field) { return row[field] === patch[field]; });
+	}
+
+	/**
+	 * Lay outstanding notes over the server rows.
+	 *
+	 * Returns the rows to draw, and mutates store to drop every note the server
+	 * has caught up with, plus any that has simply gone stale.
+	 *
+	 *   add    the row is missing, so put it back until the server lists it
+	 *   drop   the row is still listed, so hide it until the server forgets it
+	 *   patch  the row is listed with old values, so overwrite just those fields
+	 */
+	function reconcileWith(store, rows, idOf, now, ttl) {
+		var out = rows.slice();
+
+		Object.keys(store).forEach(function (id) {
+			var entry = store[id];
+			var index = -1;
+
+			for (var i = 0; i < out.length; i += 1) {
+				if (idOf(out[i]) === id) { index = i; break; }
+			}
+
+			var present = index !== -1;
+
+			var settled = entry.op === 'add'
+				? present
+				: (entry.op === 'drop' ? !present : present && rowMatches(out[index], entry.patch));
+
+			if (settled || now - entry.at > ttl) {
+				delete store[id];
+
+				return;
+			}
+
+			if (entry.op === 'add') {
+				out.push(entry.row);
+			} else if (entry.op === 'drop') {
+				out.splice(index, 1);
+			} else {
+				out[index] = Object.assign({}, out[index], entry.patch);
+			}
+		});
+
+		return out;
+	}
+	/* --8<-- end reconcile --8<-- */
+
+	function reconcile(kind, rows, idOf, sort) {
+		var out = reconcileWith(pending[kind], rows || [], idOf, Date.now(), PENDING_TTL_MS).sort(sort);
+		savePending();
+
+		return out;
+	}
+
+	var byName = function (a, b) { return String(a.name).localeCompare(String(b.name)); };
+	var byEmail = function (a, b) { return String(a.email).localeCompare(String(b.email)); };
+	var idByHash = function (row) { return row.hash; };
+	var idByEmail = function (row) { return row.email; };
+
 	function note(message, kind) {
 		var el = $('note');
 		el.textContent = message;
@@ -331,7 +446,8 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 				var to = select.value;
 				select.value = '';
 				act('accounts/role', { email: account.email, role: to },
-					account.email + ' is now ' + (to === 'owner' ? 'an owner' : 'a manager') + '.');
+					account.email + ' is now ' + (to === 'owner' ? 'an owner' : 'a manager') + '.', null,
+					{ kind: 'accounts', id: account.email, entry: { op: 'patch', patch: { role: to } } });
 			});
 			cell.appendChild(select);
 			cell.appendChild(space());
@@ -344,6 +460,8 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 					+ 'Any session they have open ends now.')) { return; }
 
 				act('accounts/reset', { email: account.email }, null, function (data) {
+					remember('accounts', data.email, { op: 'patch', patch: { pending: true } });
+
 					secret('One-time password for ' + data.email,
 						'They sign in with this once, then choose their own. It is shown only now.',
 						'Email:     ' + data.email + '\nPassword:  ' + data.password);
@@ -357,10 +475,12 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 				if (!confirm('Suspend ' + account.email + '?\n\n'
 					+ 'They lose access immediately. Their key, if they have one, is untouched. '
 					+ 'This is reversible.')) { return; }
-				act('accounts/suspend', { email: account.email }, 'Suspended ' + account.email + '.');
+				act('accounts/suspend', { email: account.email }, 'Suspended ' + account.email + '.', null,
+					{ kind: 'accounts', id: account.email, entry: { op: 'patch', patch: { active: false } } });
 			})
 			: button('Restore', '', function () {
-				act('accounts/restore', { email: account.email }, 'Restored ' + account.email + '.');
+				act('accounts/restore', { email: account.email }, 'Restored ' + account.email + '.', null,
+					{ kind: 'accounts', id: account.email, entry: { op: 'patch', patch: { active: true } } });
 			});
 
 		if (locked && account.active) { suspend.disabled = true; suspend.title = why; }
@@ -372,7 +492,8 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 			if (!confirm('Remove ' + account.email + '?\n\n'
 				+ 'They lose access to this page. Nothing else is deleted — any key or '
 				+ 'addresses belong to the users they were issued to, not to them.')) { return; }
-			act('accounts/remove', { email: account.email }, 'Removed ' + account.email + '.');
+			act('accounts/remove', { email: account.email }, 'Removed ' + account.email + '.', null,
+				{ kind: 'accounts', id: account.email, entry: { op: 'drop' } });
 		});
 
 		if (locked) { remove.disabled = true; remove.title = why; }
@@ -446,6 +567,22 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 				+ ' address(es) carry over unchanged.')) { return; }
 
 			act('keys/roll', { hash: user.hash }, null, function (data) {
+				// A roll is a delete and an insert: the record moves to the hash of
+				// the new key, carrying the addresses with it.
+				remember('users', user.hash, { op: 'drop' });
+				remember('users', data.hash, {
+					op: 'add',
+					row: {
+						hash: data.hash,
+						name: data.name,
+						active: user.active,
+						hint: data.key.slice(-6),
+						issuedAt: user.issuedAt,
+						rolledAt: new Date().toISOString(),
+						sites: user.sites
+					}
+				});
+
 				secret('New key for ' + data.name,
 					'Send both lines. The old key is dead, and ' + data.addresses
 						+ ' address(es) carried over.',
@@ -460,10 +597,12 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 				if (!confirm('Revoke ' + user.name + '?\n\n'
 					+ 'Their ' + user.sites.length + ' address(es) stop answering but stay reserved, '
 					+ 'and they cannot provision anything new. This is reversible.')) { return; }
-				act('keys/revoke', { hash: user.hash }, 'Revoked ' + user.name + '.');
+				act('keys/revoke', { hash: user.hash }, 'Revoked ' + user.name + '.', null,
+					{ kind: 'users', id: user.hash, entry: { op: 'patch', patch: { active: false } } });
 			})
 			: button('Restore', '', function () {
-				act('keys/restore', { hash: user.hash }, 'Restored ' + user.name + '.');
+				act('keys/restore', { hash: user.hash }, 'Restored ' + user.name + '.', null,
+					{ kind: 'users', id: user.hash, entry: { op: 'patch', patch: { active: true } } });
 			}));
 
 		cell.appendChild(space());
@@ -496,6 +635,8 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 			// The count travels with the request, so the Worker refuses if somebody
 			// provisioned an address since this page was drawn.
 			act('keys/remove', { hash: user.hash, expectAddresses: user.sites.length }, null, function (data) {
+				remember('users', user.hash, { op: 'drop' });
+
 				var message = 'Removed ' + data.name
 					+ (data.addresses ? ' and ' + data.addresses + ' address(es)' : '') + '.';
 
@@ -580,15 +721,34 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 				return;
 			}
 
+			/*
+			 * Anything we did that the server has not caught up with is put back
+			 * before drawing. Once its answer agrees, reconcile drops the note and
+			 * the server is authoritative again.
+			 */
+			if (res.data.canManageAdmins) {
+				res.data.accounts = reconcile('accounts', res.data.accounts, idByEmail, byEmail);
+			}
+
+			res.data.users = reconcile('users', res.data.users, idByHash, byName);
+
 			state = res.data;
 			render();
 		});
 	}
 
-	/** Run an action, report it, then redraw from the server rather than guessing. */
-	function act(path, body, okMessage, onOk) {
+	/**
+	 * Run an action, report it, then redraw from the server rather than guessing.
+	 *
+	 * optimistic is the note to hold over the server's stale answer. It is only
+	 * recorded once the write has actually succeeded — a note taken before the
+	 * request would go on asserting a change that was refused.
+	 */
+	function act(path, body, okMessage, onOk, optimistic) {
 		return api(path, body).then(function (res) {
 			if (!res.data.ok) { note(res.data.error, 'error'); return refresh(); }
+
+			if (optimistic) { remember(optimistic.kind, optimistic.id, optimistic.entry); }
 
 			if (onOk) { onOk(res.data); } else if (okMessage) { note(okMessage, 'ok'); }
 
@@ -664,6 +824,27 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 		act('accounts/add', { email: email, role: $('account-role').value }, null, function (data) {
 			$('account-email').value = '';
 
+			remember('accounts', data.email, {
+				op: 'add',
+				row: {
+					email: data.email,
+					role: data.role,
+					active: true,
+
+					// Only a password deployment hands one back, and holding one is
+					// exactly what "has not signed in yet" means.
+					pending: Boolean(data.password),
+					addedAt: new Date().toISOString(),
+					addedBy: state.you.email,
+					you: false,
+
+					// Adding somebody never makes them the last owner, and the server
+					// recomputes it on its next honest answer anyway.
+					lastOwner: false
+				}
+			});
+
+
 			if (data.password) {
 				secret('Access for ' + data.email,
 					'They sign in with this once, then choose their own password. It is shown only now.',
@@ -679,6 +860,22 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 
 		act('keys/issue', { name: $('user-name').value.trim() }, null, function (data) {
 			$('user-name').value = '';
+
+			// The listing will not show them for a few seconds yet, so hold the row
+			// until it does. The fragment is the tail of the key just handed back.
+			remember('users', data.hash, {
+				op: 'add',
+				row: {
+					hash: data.hash,
+					name: data.name,
+					active: true,
+					hint: data.key.slice(-6),
+					issuedAt: new Date().toISOString(),
+					rolledAt: null,
+					sites: []
+				}
+			});
+
 			secret('Key for ' + data.name,
 				'Send both lines. Only a hash is stored, so this is the one time it can be shown.',
 				'Service:  ' + location.host + '\nKey:      ' + data.key);

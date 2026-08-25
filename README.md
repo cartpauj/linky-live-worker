@@ -535,6 +535,15 @@ console. The gateway check runs first, so `linky-k4d8vn.example.com/admin` is
 proxied to the teammate's WordPress like any other path and still needs the
 site's password. Only the API hostname grows an admin page.
 
+**KV is eventually consistent, and its listings lag the most.** A key issued
+through the web UI is missing from `list()` for the better part of ten seconds,
+so redrawing straight after a write shows the state from before it. The write is
+not lost — the read is stale. The page therefore holds a note of what it just did
+and lays that over the server's answer until the server agrees, which is why a
+new row appears at once rather than after a reload. Notes expire, so a wrong
+assumption cannot outlive the tab, and they are only taken once a write has
+actually succeeded.
+
 **There is no password reset by email.** Nothing here sends mail. An admin who
 loses their password is rescued from a terminal with
 `npm run admins passwd <email>`, which mints a fresh one-time password. Keep at
