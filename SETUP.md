@@ -323,8 +323,18 @@ handing over does not need a terminal — except that the last active owner cann
 remove, demote or suspend themselves, since nobody would be left to let anyone
 back in.
 
-An admin account is not a team key. A key holder runs the add-on and never signs
-in here; an account holder manages the service and need not hold a key.
+An admin account is not a team key, and the two are managed separately:
+
+| | Admin account | User and key |
+| --- | --- | --- |
+| Identified by | an email address | a name, and a key hash |
+| Used for | signing in at `/admin` | running the add-on |
+| Taken away with | `suspend` or `remove` | `revoke` or `remove` |
+| Managed by | `npm run admins` | `npm run keys` |
+
+Removing an account deletes nobody's key; removing a user deletes nobody's login.
+The same person may well have both, and they still have nothing to do with each
+other.
 
 ### Signing in with a password
 
@@ -335,9 +345,19 @@ then:
 npm run admins init
 ```
 
-That prints a one-time password. Sign in with it once, and the page makes you
-choose your own before it will do anything else. From there, add colleagues in
-the browser or from the terminal:
+Run it any time after `npm run kv` — it writes to KV through wrangler and does
+not need the Worker — though the sign-in link it prints only works once you have
+deployed.
+
+It prints a one-time password. Sign in with it once, and the page makes you
+choose your own before it will do anything else. Check it answers:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://linky-live.example.com/admin
+# 200
+```
+
+From there, add colleagues in the browser or from the terminal:
 
 ```bash
 npm run admins list
@@ -349,6 +369,18 @@ npm run admins remove alice@example.com
 ```
 
 Set `ADMIN_EMAIL_DOMAIN` to restrict accounts to one domain, e.g. `example.com`.
+
+**Nothing here sends email**, so there is no "forgot password" link. A lost
+password is reset from a terminal with `npm run admins passwd <email>`, which
+mints a fresh one-time password and ends any session that account had open. Keep
+a second owner, or keep wrangler access — those are the only two ways back in.
+
+Passwords are hashed with PBKDF2-SHA256 at 100,000 iterations. That is the
+ceiling Workers enforce rather than a number chosen freely; anything higher is
+refused at runtime. It is below what OWASP asks of PBKDF2, which is part of why
+`admins add` mints a random password rather than letting anyone pick one — and
+why Cloudflare Access below is worth the extra setup if you have an identity
+provider already.
 
 ### Signing in with Cloudflare Access
 

@@ -38,8 +38,14 @@ npm run check                              # confirms nothing is left unset
 npx wrangler secret put CF_API_TOKEN       # needs a real terminal — see below
 npm run deploy
 
+npm run admins init                        # your admin login, from BOOTSTRAP_OWNER_EMAIL
 npm run keys issue "Alice"                 # a key for your first user
 ```
+
+`npm run admins init` prints a one-time password for the web UI at
+`https://<your API hostname>/admin`. Signing in with it makes you choose your own
+before the page will do anything else. The UI is optional — everything it does,
+`npm run keys` and `npm run admins` also do.
 
 The KV step comes after editing, because wrangler reads the account id from
 `wrangler.toml`. `npm run kv` writes the new namespace id straight into the file,
@@ -123,10 +129,20 @@ src/access.js          Cloudflare Access token verification
 src/passwords.js       PBKDF2 hashing, for the password sign-in
 src/sessions.js        KV-backed browser sessions, likewise
 
+scripts/keys.mjs       manage users and their keys
+scripts/admins.mjs     manage admin accounts
+scripts/kv-lib.mjs     the one place that shells out to `wrangler kv`
+scripts/deploy.mjs     deploy, passing account_id through to the Worker
+
 wrangler.toml          configuration
 test/                  gateway auth, key boundary, validation, DNS guard,
                        rewriting, roles, admin flows, Access verification
 ```
+
+The two CLIs share `kv-lib.mjs` rather than each holding their own copy of four
+wrangler wrappers. They did hold their own, and the copies disagreed about a flag
+that does not exist — so a test now refuses to let either build a `wrangler kv`
+command of its own.
 
 ## Configuration
 
@@ -231,7 +247,7 @@ sign-in.
 **`access`** — Cloudflare Zero Trust in front of `/admin`, with Google, Okta, or
 any other identity provider behind it. No password is stored anywhere. Set
 `ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` and `ADMIN_EMAIL_DOMAIN`, and see
-[`SETUP.md`](SETUP.md#the-admin-area). The Worker verifies the signed token on
+[`SETUP.md`](SETUP.md#8-the-admin-area). The Worker verifies the signed token on
 every request rather than trusting the header, because the `workers.dev` URL is
 not behind the Access application and a Worker that only looked for a header
 would be wide open at its other address.
@@ -320,9 +336,26 @@ CF_API_TOKEN=your-token npm run keys remove Qw8zT1
 It refuses rather than deleting the key alone, which would leave those resources
 on the zone with nothing able to manage them.
 
+The web UI does all three too, and needs no token passed in: the Worker already
+holds `CF_API_TOKEN` as a secret, because provisioning and `/v1/release` need it
+anyway. Before deleting, it makes you type the person's name and re-checks that
+the address count is still what the page showed you — so a site provisioned since
+you loaded it cannot be destroyed by a click aimed at something else.
+
+Do not confuse this with **suspending an admin account**, which is a different
+table entirely: suspending someone takes away their access to the console and
+touches no key, and revoking a user takes away their addresses and touches no
+login.
+
 ## Worker API
 
-All endpoints need `Authorization: Bearer <team key>`.
+This is the add-on's API, and every endpoint needs
+`Authorization: Bearer <team key>`.
+
+The admin area at `/admin` is **not** part of it. It is a separate surface with a
+separate credential — a session cookie, or a Cloudflare Access token — and no
+team key opens it. A leaked add-on key therefore cannot reach key management, and
+nothing the add-on can call issues, lists, or revokes a key.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -497,9 +530,31 @@ site's port and shows a warning banner for exactly this case.
 **Bot Fight Mode will intermittently reject webhook POSTs.** Scope a skip rule to
 `Hostname starts with linky-` rather than disabling it zone-wide.
 
+**`/admin` on a provisioned site hostname is that site's own path**, not the
+console. The gateway check runs first, so `linky-k4d8vn.example.com/admin` is
+proxied to the teammate's WordPress like any other path and still needs the
+site's password. Only the API hostname grows an admin page.
+
+**There is no password reset by email.** Nothing here sends mail. An admin who
+loses their password is rescued from a terminal with
+`npm run admins passwd <email>`, which mints a fresh one-time password. Keep at
+least two owners, or keep wrangler access.
+
 ---
 
 ## Known limitations
+
+**Password hashing is capped by the platform.** Workers refuse PBKDF2 above
+100,000 iterations — `NotSupportedError` at runtime, not a warning — so that is
+the count used, below what OWASP asks for PBKDF2-SHA256. There is no knob above
+it and no Argon2 in WebCrypto. What carries the weight instead is that passwords
+are minted at random by `admins add` rather than chosen by people, and that
+`AUTH_MODE = "access"` stores no password at all. Prefer Access if the deployment
+warrants it.
+
+Node has no such cap, which is worth knowing when changing that code: a count
+that passes the test suite can still throw in production. `MAX_ITERATIONS` is
+pinned by a test for exactly that reason.
 
 **A bypassed path exposes whatever WordPress serves there.** That is the point —
 Stripe cannot send a password — but it is the same exposure a production site has
