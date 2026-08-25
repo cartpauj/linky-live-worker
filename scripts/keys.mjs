@@ -17,22 +17,15 @@
  */
 
 import { createHash, randomBytes } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
 import { deleteDnsRecordsByName, deleteTunnel, deleteWorkerRoute } from '../src/cf.js';
+import { fail, kvDelete, kvGet, kvList, kvPut } from './kv-lib.mjs';
 import { readConfig } from './config.mjs';
-
-const BINDING = 'LINKY';
 
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
 
 /* ------------------------------------------------------------------ */
-
-function fail(message) {
-	console.error(`\n${message}\n`);
-	process.exit(1);
-}
 
 /** Fail early with something actionable rather than a wrangler stack trace. */
 function checkConfig() {
@@ -51,39 +44,6 @@ function checkConfig() {
 	return { serviceHost: config.apiHost };
 }
 
-function wrangler(args, { quiet = false } = {}) {
-	try {
-		return execFileSync('npx', ['wrangler', ...args], {
-			encoding: 'utf8',
-			stdio: quiet ? ['ignore', 'pipe', 'ignore'] : ['ignore', 'pipe', 'pipe'],
-		});
-	} catch (err) {
-		if (quiet) {
-			return null;
-		}
-
-		fail(`wrangler failed:\n${err.stderr || err.stdout || err.message}`);
-	}
-
-	return null;
-}
-
-const kvPut = (key, value) =>
-	wrangler(['kv', 'key', 'put', key, value, `--binding=${BINDING}`, '--remote']);
-
-const kvGet = (key) => {
-	const out = wrangler(['kv', 'key', 'get', key, `--binding=${BINDING}`, '--remote'], { quiet: true });
-
-	try {
-		return out ? JSON.parse(out) : null;
-	} catch {
-		return null;
-	}
-};
-
-const kvDelete = (key) =>
-	wrangler(['kv', 'key', 'delete', key, `--binding=${BINDING}`, '--remote', '--force']);
-
 /**
  * Every address a person holds.
  *
@@ -91,10 +51,8 @@ const kvDelete = (key) =>
  * everything one key owns without reading anyone else's.
  */
 function sitesOf(hash) {
-	const raw = wrangler(['kv', 'key', 'list', `--binding=${BINDING}`, `--prefix=site:${hash}:`, '--remote']);
-
-	return JSON.parse(raw || '[]')
-		.map(({ name }) => ({ kvKey: name, ...(kvGet(name) || {}) }))
+	return kvList(`site:${hash}:`)
+		.map((name) => ({ kvKey: name, ...(kvGet(name) || {}) }))
 		.sort((a, b) => String(a.siteName).localeCompare(String(b.siteName)));
 }
 
@@ -125,11 +83,8 @@ function showSites(person, sites) {
 }
 
 function everyone() {
-	const raw = wrangler(['kv', 'key', 'list', `--binding=${BINDING}`, '--prefix=teamkey:', '--remote']);
-	const keys = JSON.parse(raw || '[]');
-
-	return keys
-		.map(({ name }) => ({ hash: name.replace('teamkey:', ''), ...(kvGet(name) || {}) }))
+	return kvList('teamkey:')
+		.map((name) => ({ hash: name.replace('teamkey:', ''), ...(kvGet(name) || {}) }))
 		.sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
 

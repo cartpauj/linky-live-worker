@@ -23,62 +23,20 @@
  * deployment with no owner is a support problem rather than a policy decision.
  */
 
-import { execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 
 import { hashPassword, validatePassword } from '../src/passwords.js';
 import { ROLES, isValidRole, roleOf, wouldStrandService } from '../src/roles.js';
 import { randomToken } from '../src/util.js';
+import { fail, kvDelete, kvGet, kvList, kvPut } from './kv-lib.mjs';
 import { readConfig } from './config.mjs';
-
-const BINDING = 'LINKY';
-
-function fail(message) {
-	console.error(`\n${message}\n`);
-	process.exit(1);
-}
-
-function wrangler(args, { quiet = false } = {}) {
-	try {
-		return execFileSync('npx', ['wrangler', ...args], {
-			encoding: 'utf8',
-			stdio: quiet ? ['ignore', 'pipe', 'ignore'] : ['ignore', 'pipe', 'pipe'],
-		});
-	} catch (err) {
-		if (quiet) {
-			return null;
-		}
-
-		fail(`wrangler failed:\n${err.stderr || err.stdout || err.message}`);
-	}
-
-	return null;
-}
-
-const kvPut = (key, value) =>
-	wrangler(['kv', 'key', 'put', key, value, `--binding=${BINDING}`, '--remote']);
-
-const kvGet = (key) => {
-	const out = wrangler(['kv', 'key', 'get', key, `--binding=${BINDING}`, '--remote'], { quiet: true });
-
-	try {
-		return out ? JSON.parse(out) : null;
-	} catch {
-		return null;
-	}
-};
-
-const kvDelete = (key) =>
-	wrangler(['kv', 'key', 'delete', key, `--binding=${BINDING}`, '--remote', '--force']);
 
 const recordKey = (email) => `admin:${email}`;
 
 /** Every admin account, in the shape roles.js expects. */
 function everyone() {
-	const raw = wrangler(['kv', 'key', 'list', `--binding=${BINDING}`, '--prefix=admin:', '--remote']);
-
-	return JSON.parse(raw || '[]')
-		.map(({ name }) => {
+	return kvList('admin:')
+		.map((name) => {
 			const record = kvGet(name) || {};
 
 			return {
@@ -497,9 +455,7 @@ async function main() {
 
 /** End any open browser session for an account whose access just changed. */
 function dropSessions(email) {
-	const raw = wrangler(['kv', 'key', 'list', `--binding=${BINDING}`, '--prefix=session:', '--remote']);
-
-	for (const { name } of JSON.parse(raw || '[]')) {
+	for (const name of kvList('session:')) {
 		const session = kvGet(name);
 
 		if (session && String(session.email).toLowerCase() === email) {
