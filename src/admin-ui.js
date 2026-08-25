@@ -89,9 +89,20 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 	.note.error { color: var(--danger); border-color: currentColor; }
 	.note.ok { color: var(--ok); border-color: currentColor; }
 
-	dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); max-width: 34rem; padding: 1.25rem; }
+	/* Wide enough for a whole key on one line, and never wider than the screen. */
+	dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); max-width: min(48rem, 94vw); padding: 1.25rem; }
 	dialog::backdrop { background: rgb(0 0 0 / .5); }
-	pre.secret { background: var(--chip); padding: .7rem .85rem; border-radius: 8px; white-space: pre-wrap; word-break: break-all; margin: .5rem 0; }
+	/*
+	 * A credential must never be broken across lines. break-all split keys
+	 * mid-string, which reads as though the key contains a newline and invites
+	 * copying half of it by hand.
+	 *
+	 * So: no wrapping at all, and a scrollbar if the box is somehow still too
+	 * narrow. Widening the dialog is what makes that scrollbar unnecessary in
+	 * practice, but the rule holds whatever the font or the window does — which a
+	 * width chosen to fit today's key length would not.
+	 */
+	pre.secret { background: var(--chip); padding: .7rem .85rem; border-radius: 8px; white-space: pre; word-break: normal; overflow-x: auto; margin: .5rem 0; }
 </style>
 </head>
 <body>
