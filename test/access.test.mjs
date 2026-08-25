@@ -46,7 +46,7 @@ const now = () => Math.floor(Date.now() / 1000);
 const goodClaims = (over = {}) => ({
 	aud: [AUD],
 	iss: `https://${TEAM}`,
-	email: 'owner@caseproof.com',
+	email: 'owner@example.com',
 	exp: now() + 600,
 	iat: now(),
 	...over,
@@ -57,7 +57,7 @@ const accessEnv = (seed = {}) =>
 		AUTH_MODE: 'access',
 		ACCESS_TEAM_DOMAIN: TEAM,
 		ACCESS_AUD: AUD,
-		ADMIN_EMAIL_DOMAIN: 'caseproof.com',
+		ADMIN_EMAIL_DOMAIN: 'example.com',
 	});
 
 /** Serve the JWKS, and nothing else. */
@@ -89,12 +89,12 @@ test('a properly signed token for a known account gets in', async () => {
 	const restore = stubCerts(jwk);
 
 	try {
-		const env = accessEnv({ 'admin:owner@caseproof.com': { role: 'owner', active: true } });
+		const env = accessEnv({ 'admin:owner@example.com': { role: 'owner', active: true } });
 		const res = await withToken(env, await mint(pair.privateKey, goodClaims()));
 		const body = await res.json();
 
 		assert.equal(res.status, 200);
-		assert.equal(body.you.email, 'owner@caseproof.com');
+		assert.equal(body.you.email, 'owner@example.com');
 		assert.equal(body.mode, 'access');
 	} finally {
 		restore();
@@ -107,7 +107,7 @@ test('a token signed by somebody else is refused', async () => {
 	const restore = stubCerts(jwk);
 
 	try {
-		const env = accessEnv({ 'admin:owner@caseproof.com': { role: 'owner', active: true } });
+		const env = accessEnv({ 'admin:owner@example.com': { role: 'owner', active: true } });
 
 		// Signed with a key the team does not publish, but claiming its kid.
 		const forged = await mint(other.pair.privateKey, goodClaims());
@@ -123,7 +123,7 @@ test('an unsigned token is refused', async () => {
 	const restore = stubCerts(jwk);
 
 	try {
-		const env = accessEnv({ 'admin:owner@caseproof.com': { role: 'owner', active: true } });
+		const env = accessEnv({ 'admin:owner@example.com': { role: 'owner', active: true } });
 
 		const header = b64url(new TextEncoder().encode(JSON.stringify({ alg: 'none', kid: 'test-kid' })));
 		const payload = b64url(new TextEncoder().encode(JSON.stringify(goodClaims())));
@@ -139,7 +139,7 @@ test('a token for a different Access application is refused', async () => {
 	const restore = stubCerts(jwk);
 
 	try {
-		const env = accessEnv({ 'admin:owner@caseproof.com': { role: 'owner', active: true } });
+		const env = accessEnv({ 'admin:owner@example.com': { role: 'owner', active: true } });
 		const token = await mint(pair.privateKey, goodClaims({ aud: ['some-other-app'] }));
 
 		// Every app in one Zero Trust account shares an issuer and signing keys, so
@@ -155,7 +155,7 @@ test('a token from a different team is refused', async () => {
 	const restore = stubCerts(jwk);
 
 	try {
-		const env = accessEnv({ 'admin:owner@caseproof.com': { role: 'owner', active: true } });
+		const env = accessEnv({ 'admin:owner@example.com': { role: 'owner', active: true } });
 		const token = await mint(pair.privateKey, goodClaims({ iss: 'https://elsewhere.cloudflareaccess.com' }));
 
 		assert.equal((await withToken(env, token)).status, 403);
@@ -169,7 +169,7 @@ test('an expired token is refused', async () => {
 	const restore = stubCerts(jwk);
 
 	try {
-		const env = accessEnv({ 'admin:owner@caseproof.com': { role: 'owner', active: true } });
+		const env = accessEnv({ 'admin:owner@example.com': { role: 'owner', active: true } });
 		const token = await mint(pair.privateKey, goodClaims({ exp: now() - 3600 }));
 
 		assert.equal((await withToken(env, token)).status, 401);
@@ -190,7 +190,7 @@ test('a valid login on the wrong email domain is refused', async () => {
 		const res = await withToken(env, token);
 
 		assert.equal(res.status, 403);
-		assert.match((await res.json()).error, /@caseproof\.com/);
+		assert.match((await res.json()).error, /@example\.com/);
 	} finally {
 		restore();
 	}
@@ -202,7 +202,7 @@ test('a real company login with no account here is told so plainly', async () =>
 
 	try {
 		const env = accessEnv({});
-		const token = await mint(pair.privateKey, goodClaims({ email: 'newbie@caseproof.com' }));
+		const token = await mint(pair.privateKey, goodClaims({ email: 'newbie@example.com' }));
 		const res = await withToken(env, token);
 
 		assert.equal(res.status, 403);
@@ -217,7 +217,7 @@ test('a suspended account is refused even with a good login', async () => {
 	const restore = stubCerts(jwk);
 
 	try {
-		const env = accessEnv({ 'admin:owner@caseproof.com': { role: 'owner', active: false } });
+		const env = accessEnv({ 'admin:owner@example.com': { role: 'owner', active: false } });
 
 		assert.equal((await withToken(env, await mint(pair.privateKey, goodClaims()))).status, 403);
 	} finally {
@@ -226,7 +226,7 @@ test('a suspended account is refused even with a good login', async () => {
 });
 
 test('no token at all is refused', async () => {
-	const env = accessEnv({ 'admin:owner@caseproof.com': { role: 'owner', active: true } });
+	const env = accessEnv({ 'admin:owner@example.com': { role: 'owner', active: true } });
 
 	assert.equal((await worker.fetch(adminRequest('/admin/api/state'), env)).status, 401);
 });
@@ -234,12 +234,12 @@ test('no token at all is refused', async () => {
 test('a password session is worthless in Access mode', async () => {
 	// The two modes must not be alternatives to each other: switching to Access
 	// has to close the password door, not leave it ajar.
-	const env = accessEnv({ 'admin:owner@caseproof.com': { role: 'owner', active: true } });
+	const env = accessEnv({ 'admin:owner@example.com': { role: 'owner', active: true } });
 
 	const login = await worker.fetch(
 		adminRequest('/admin/api/login', {
 			method: 'POST',
-			body: { email: 'owner@caseproof.com', password: 'anything' },
+			body: { email: 'owner@example.com', password: 'anything' },
 		}),
 		env,
 	);
