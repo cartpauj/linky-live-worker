@@ -475,7 +475,8 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 
 					secret('One-time password for ' + data.email,
 						'They sign in with this once, then choose their own. It is shown only now.',
-						'Email:     ' + data.email + '\nPassword:  ' + data.password);
+						'Email:     ' + data.email + '\nPassword:  ' + data.password,
+						{ label: 'password', value: data.password });
 				});
 			}));
 			cell.appendChild(space());
@@ -597,7 +598,8 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 				secret('New key for ' + data.name,
 					'Send both lines. The old key is dead, and ' + data.addresses
 						+ ' address(es) carried over.',
-					'Service:  ' + location.host + '\nKey:      ' + data.key);
+					'Service:  ' + location.host + '\nKey:      ' + data.key,
+					{ label: 'key', value: data.key });
 			});
 		}));
 
@@ -767,11 +769,24 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 		});
 	}
 
-	function secret(title, blurb, contents) {
+	/**
+	 * Show a credential once, and put only the credential on the clipboard.
+	 *
+	 * The block on screen carries the service address as well, because whoever
+	 * receives this needs both. The button copies the secret alone: copying the
+	 * whole block invites pasting the whole block, and a single-line field then
+	 * flattens it into something that still ends in the right six characters — so
+	 * the fragment the add-on shows matches the one on the server, and the paste
+	 * fails anyway with nothing to suggest why.
+	 *
+	 * The button says which of the two it takes, so there is nothing to assume.
+	 */
+	function secret(title, blurb, contents, copy) {
 		$('secret-title').textContent = title;
 		$('secret-blurb').textContent = blurb;
 		$('secret-text').textContent = contents;
-		$('secret-copy').textContent = 'Copy';
+		$('secret-copy').textContent = 'Copy ' + copy.label;
+		$('secret-copy').dataset.value = copy.value;
 		$('secret-dialog').showModal();
 	}
 
@@ -859,7 +874,8 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 			if (data.password) {
 				secret('Access for ' + data.email,
 					'They sign in with this once, then choose their own password. It is shown only now.',
-					'Email:     ' + data.email + '\nPassword:  ' + data.password);
+					'Email:     ' + data.email + '\nPassword:  ' + data.password,
+					{ label: 'password', value: data.password });
 			} else {
 				note(data.email + ' can now sign in as ' + (data.role === 'owner' ? 'an owner' : 'a manager') + '.', 'ok');
 			}
@@ -889,16 +905,19 @@ export const ADMIN_HTML = String.raw`<!doctype html>
 
 			secret('Key for ' + data.name,
 				'Send both lines. Only a hash is stored, so this is the one time it can be shown.',
-				'Service:  ' + location.host + '\nKey:      ' + data.key);
+				'Service:  ' + location.host + '\nKey:      ' + data.key,
+				{ label: 'key', value: data.key });
 		});
 	});
 
 	$('secret-close').addEventListener('click', function () { $('secret-dialog').close(); });
 
 	$('secret-copy').addEventListener('click', function () {
-		navigator.clipboard.writeText($('secret-text').textContent).then(
-			function () { $('secret-copy').textContent = 'Copied'; },
-			function () { $('secret-copy').textContent = 'Select it and copy'; }
+		var button = $('secret-copy');
+
+		navigator.clipboard.writeText(button.dataset.value).then(
+			function () { button.textContent = 'Copied'; },
+			function () { button.textContent = 'Select it and copy'; }
 		);
 	});
 

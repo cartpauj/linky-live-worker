@@ -437,7 +437,7 @@ test('the control plane still answers on its own hostname', async () => {
 	);
 
 	assert.equal(res.status, 401);
-	assert.match((await res.json()).error, /API key/);
+	assert.match((await res.json()).error, /Linky Live key/, 'and it is the add-on API answering, not /admin');
 });
 
 test('the session token never comes back in a response body', async () => {

@@ -138,3 +138,74 @@ test('provisioning marks the hostname record as owned by an active key', async (
 
 	assert.equal(host.ownerActive, true);
 });
+
+/* ------------------------------------------------------------------ *
+ * Telling apart a wrong key and a thing that is not a key
+ * ------------------------------------------------------------------ */
+
+test('a pasted block is named as such, not called an invalid key', async () => {
+	/*
+	 * The admin UI shows a service line and a key line together. Pasting both into
+	 * a single-line field flattens them into one string that still ends in the
+	 * key's last six characters — so the fragment the add-on displays matches the
+	 * fragment on the server, and "invalid or missing API key" sends somebody
+	 * checking the one thing that is fine.
+	 */
+	const key = 'linky_alicekey';
+	const hash = await sha256Hex(key);
+	const env = baseEnv({ seed: { [`teamkey:${hash}`]: { name: 'Alice', active: true } } });
+
+	const pasted = `Service:  linky-live.example.com Key:      ${key}`;
+	const res = await status(env, pasted);
+	const body = await res.json();
+
+	assert.equal(res.status, 401);
+	assert.match(body.error, /does not look like a Linky Live key/);
+	assert.match(body.error, /Key line on its own/, 'and says what to do instead');
+});
+
+test('a key-shaped value we do not know says so plainly', async () => {
+	const hash = await sha256Hex('linky_alicekey');
+	const env = baseEnv({ seed: { [`teamkey:${hash}`]: { name: 'Alice', active: true } } });
+
+	// Right shape, wrong key — including a key truncated by one character, which
+	// is the other common paste mistake and is indistinguishable from any other
+	// unknown key.
+	for (const key of ['linky_nobodyskey', 'linky_alicake', 'linky_alicekeyy']) {
+		const body = await (await status(env, key)).json();
+
+		assert.match(body.error, /not recognised/, `"${key}" should read as unknown, not malformed`);
+	}
+});
+
+test('a revoked key is told it was revoked', async () => {
+	const key = 'linky_alicekey';
+	const hash = await sha256Hex(key);
+	const env = baseEnv({ seed: { [`teamkey:${hash}`]: { name: 'Alice', active: false } } });
+
+	const res = await status(env, key);
+
+	assert.equal(res.status, 401);
+	assert.match((await res.json()).error, /revoked/);
+});
+
+test('no header at all says the key is missing', async () => {
+	const env = baseEnv({ seed: {} });
+	const res = await worker.fetch(new Request('https://linky-live.example.com/v1/status'), env);
+
+	assert.equal(res.status, 401);
+	assert.match((await res.json()).error, /Missing API key/);
+});
+
+test('an oddly shaped key still works if it is genuinely ours', async () => {
+	/*
+	 * The shape check exists to word an error, not to authenticate. If it gated
+	 * sign-in, the prefix would quietly become part of the credential format and
+	 * any key predating that rule would stop working.
+	 */
+	const key = 'a-key-with-no-prefix-at-all';
+	const hash = await sha256Hex(key);
+	const env = baseEnv({ seed: { [`teamkey:${hash}`]: { name: 'Legacy', active: true } } });
+
+	assert.equal((await status(env, key)).status, 200);
+});

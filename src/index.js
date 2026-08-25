@@ -107,22 +107,66 @@ async function syncHostRecord(env, record) {
  * A caller is identified by that hash, never by the name beside it, so someone
  * can be renamed without orphaning their sites.
  */
+/**
+ * What a key looks like: the prefix, then url-safe base64 and nothing else.
+ *
+ * Checked so that a value which is not a key at all can be told apart from one
+ * that simply is not ours. The distinction is the difference between a fixable
+ * mistake and a mystery — see authenticateAddon.
+ */
+const KEY_SHAPE = /^linky_[A-Za-z0-9_-]+$/;
+
+/**
+ * Resolve the caller's bearer token to a teammate.
+ *
+ * @returns {Promise<{ caller: object } | { error: string }>}
+ *
+ * The two failures are reported differently on purpose. "Invalid or missing API
+ * key" is the right answer to a key we do not recognise, and a useless one when
+ * somebody has pasted the whole block the admin UI shows — service line, labels
+ * and all — into a single-line field. That paste still ends in the key's last six
+ * characters, so the fragment the add-on displays matches the fragment on the
+ * server, and everything looks correct while nothing works.
+ *
+ * Saying which of the two happened costs nothing: the format is printed next to
+ * every key we issue, so it is not a thing an attacker learns here.
+ */
 async function authenticateAddon(request, env) {
 	const header = request.headers.get('Authorization') || '';
 	const match = header.match(/^Bearer\s+(.+)$/i);
 
 	if (!match) {
-		return null;
+		return { error: 'Missing API key. The add-on sends it as an Authorization: Bearer header.' };
 	}
 
-	const hash = await sha256Hex(match[1].trim());
+	const token = match[1].trim();
+	const hash = await sha256Hex(token);
 	const team = await env.LINKY.get(teamKeyKey(hash), 'json');
 
-	if (!team || team.active === false) {
-		return null;
+	/*
+	 * The lookup decides, and the shape only picks the wording afterwards.
+	 *
+	 * Checking the shape first would make the prefix part of what authenticates a
+	 * caller, so any key that did not match — a hand-made one, or one from before
+	 * the format settled — would stop working on the strength of a rule invented
+	 * for an error message. Whatever hashes to a known key is a known key.
+	 */
+	if (team && team.active !== false) {
+		return { caller: { hash, team } };
 	}
 
-	return { hash, team };
+	if (team) {
+		return { error: 'That key has been revoked.' };
+	}
+
+	if (!KEY_SHAPE.test(token)) {
+		return {
+			error: 'That does not look like a Linky Live key. A key is the word linky_ followed by '
+				+ 'letters and digits, with no spaces. Copy the Key line on its own — not the whole block.',
+		};
+	}
+
+	return { error: 'That key is not recognised. It may have been rolled or removed — ask for a new one.' };
 }
 
 /** What the addon is allowed to see. Never leaks other teammates' records. */
@@ -366,11 +410,13 @@ async function handleStatus(env, keyHash, url) {
 }
 
 async function handleControlPlane(request, env, url) {
-	const caller = await authenticateAddon(request, env);
+	const authenticated = await authenticateAddon(request, env);
 
-	if (!caller) {
-		return fail('Invalid or missing API key.', 401);
+	if (authenticated.error) {
+		return fail(authenticated.error, 401);
 	}
+
+	const caller = authenticated.caller;
 
 	if (url.pathname === '/v1/status' && request.method === 'GET') {
 		return handleStatus(env, caller.hash, url);
