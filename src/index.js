@@ -45,6 +45,7 @@ const VERSION = pkg.version;
 import { maybeRewrite } from './rewrite.js';
 
 import {
+	hostKey,
 	isBypassed,
 	isPublicAsset,
 	randomPassword,
@@ -52,9 +53,13 @@ import {
 	randomUsername,
 	safeEqual,
 	sha256Hex,
+	siteKey,
+	teamKeyKey,
 	validateBypassPaths,
 	validateCredential,
 } from './util.js';
+
+import { handleAdmin } from './admin.js';
 
 const json = (data, status = 200) =>
 	new Response(JSON.stringify(data, null, 2), {
@@ -63,18 +68,6 @@ const json = (data, status = 200) =>
 	});
 
 const fail = (message, status = 400) => json({ ok: false, error: message }, status);
-
-/* ------------------------------------------------------------------ *
- * KV keys
- *
- *   teamkey:<sha256>        -> { name, active }        who may use the addon
- *   site:<keyHash>:<siteId> -> full site record        addon-facing lookup
- *   host:<hostname>         -> auth + bypass subset    gateway hot path
- * ------------------------------------------------------------------ */
-
-const teamKeyKey = (hash) => `teamkey:${hash}`;
-const siteKey = (hash, siteId) => `site:${hash}:${siteId}`;
-const hostKey = (hostname) => `host:${hostname}`;
 
 /**
  * Mirror the auth-relevant fields to a hostname-keyed entry.
@@ -574,6 +567,18 @@ export default {
 
 		if (record) {
 			return handleGateway(request, env, url, record);
+		}
+
+		/*
+		 * The admin UI, checked before the control plane and only on hostnames
+		 * that are not provisioned sites.
+		 *
+		 * Order matters: this sits below the gateway check, so a teammate whose
+		 * site happens to serve a /admin path keeps serving it themselves. It is
+		 * the API's own hostname that grows an admin page, never anybody's site.
+		 */
+		if (url.pathname === '/admin' || url.pathname.startsWith('/admin/')) {
+			return handleAdmin(request, env, url);
 		}
 
 		return handleControlPlane(request, env, url);

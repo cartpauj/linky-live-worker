@@ -8,6 +8,8 @@
     "dev": "wrangler dev",
     "tail": "wrangler tail",
     "keys": "node scripts/keys.mjs",
+    "admins": "node scripts/admins.mjs",
+    "test": "node --test test/",
     "kv": "node scripts/kv.mjs",
     "check": "node scripts/check-config.mjs"
   },

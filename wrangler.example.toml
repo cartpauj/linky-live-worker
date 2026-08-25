@@ -49,10 +49,48 @@ HOSTNAME_PREFIX = "linky"
 API_SUBDOMAIN = "linky-live"
 
 
+# ── The admin area, at https://<API_SUBDOMAIN>.<ZONE_NAME>/admin ─────────────
+#
+# A web UI for the same things `npm run keys` does, plus the accounts that may
+# use it. Two roles: an owner manages accounts, a manager manages users and
+# their keys. Neither has anything to do with a team key — a key holder runs the
+# add-on and never signs in here.
+
+# How people sign in. Leave as "password" unless you want the second option.
+#
+#   password   email and password, hashed in the Worker. Nothing to set up.
+#   access     Cloudflare Zero Trust in front of /admin — Google, Okta, or any
+#              other identity provider. No passwords are stored at all. See the
+#              "Admin area" section of SETUP.md; the three ACCESS_ settings
+#              below are required, and the Worker refuses to serve /admin until
+#              they are filled in.
+AUTH_MODE = "password"
+
+# ── 4 ── Who the first owner is. `npm run admins init` reads this, creates the
+# account, and prints a one-time password. Everything after that happens in the
+# web UI or via `npm run admins`.
+BOOTSTRAP_OWNER_EMAIL = "YOUR_EMAIL"
+
+# Restrict admin accounts to one email domain, e.g. example.com. Optional with
+# passwords, since an account has to be created deliberately anyway. REQUIRED
+# with AUTH_MODE = "access", where it is the difference between "our company"
+# and "anybody with a Google account".
+# ADMIN_EMAIL_DOMAIN = ""
+
+# Only for AUTH_MODE = "access". Your Zero Trust team domain, without https://
+# — e.g. yourteam.cloudflareaccess.com
+# ACCESS_TEAM_DOMAIN = ""
+
+# Only for AUTH_MODE = "access". The Access application's Audience (AUD) tag,
+# from its overview page. This is what stops a token minted for one of your
+# other Access apps being replayed here, so it is not optional.
+# ACCESS_AUD = ""
+
+
 [[kv_namespaces]]
 binding = "LINKY"
 
-# ── 4 ── Filled in for you: run `npm run kv`, after step 1. It creates the
+# ── 5 ── Filled in for you: run `npm run kv`, after step 1. It creates the
 # namespace and writes the id here, so there is nothing to copy across.
 id = "YOUR_KV_NAMESPACE_ID"
 

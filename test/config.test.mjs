@@ -147,7 +147,7 @@ test('every placeholder is numbered and explained in the template', () => {
 		placeholders.push({ key: match[1], comment: above.join(' ') });
 	});
 
-	assert.equal(placeholders.length, 4, `expected 4 placeholders, found ${placeholders.length}`);
+	assert.equal(placeholders.length, 5, `expected 5 placeholders, found ${placeholders.length}`);
 
 	for (const { key, comment } of placeholders) {
 		assert.match(comment, /──\s*\d\s*──/, `${key} must carry a numbered marker`);
@@ -157,14 +157,14 @@ test('every placeholder is numbered and explained in the template', () => {
 	// Numbered in the order they are filled, so following them top to bottom works.
 	const numbers = placeholders.map((p) => Number(p.comment.match(/──\s*(\d)\s*──/)[1]));
 
-	assert.deepEqual(numbers, [1, 2, 3, 4], 'markers must run 1-4 in file order');
+	assert.deepEqual(numbers, [1, 2, 3, 4, 5], 'markers must run 1-5 in file order');
 });
 
 test('the setup doc points at the numbering rather than restating it', () => {
 	const setup = readFileSync('SETUP.md', 'utf8');
 
 	// Listing every field in both places is how the two drifted apart before.
-	assert.match(setup, /four placeholders/i, 'the doc must say how many there are');
+	assert.match(setup, /five placeholders/i, 'the doc must say how many there are');
 	assert.match(setup, /── 1 ──/, 'and refer to the markers in the file');
 
 	// The one ordering constraint cannot be inferred from the file alone.
@@ -354,7 +354,7 @@ test('every command the scripts tell you to run is documented', () => {
 	// than SETUP.md. Anything the tooling names has to exist in both docs.
 	const named = new Set();
 
-	for (const file of ['kv.mjs', 'deploy.mjs', 'check-config.mjs', 'keys.mjs']) {
+	for (const file of ['kv.mjs', 'deploy.mjs', 'check-config.mjs', 'keys.mjs', 'admins.mjs']) {
 		for (const [, name] of readFileSync(`scripts/${file}`, 'utf8').matchAll(/npm run ([a-z]+)/g)) {
 			named.add(name);
 		}

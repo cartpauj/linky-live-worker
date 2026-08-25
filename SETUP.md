@@ -49,7 +49,7 @@ cp wrangler.example.toml wrangler.toml
 $EDITOR wrangler.toml
 ```
 
-The file has **four placeholders**, numbered `── 1 ──` to `── 4 ──` in the order
+The file has **five placeholders**, numbered `── 1 ──` to `── 5 ──` in the order
 they are filled. You type the first three; the fourth is filled in for you.
 Everything else is marked *Fixed* and can be left alone.
 
@@ -303,13 +303,83 @@ theirs moves by one. Two things handle that:
 A bare number still works and is confirmed by naming who it matched, which is
 enough when you are the only one making changes.
 
-### Only admins can add or revoke keys
+### A teammate key can never manage keys
 
-Key management needs Cloudflare account access. No HTTP endpoint creates, lists,
-or revokes a key, so a leaked teammate key cannot mint more, and the add-on cannot
-issue keys at all.
+The add-on's own API has no endpoint that creates, lists, or revokes a key, so a
+leaked teammate key cannot mint more. Key management lives behind Cloudflare
+account access at a terminal, or behind an admin login at `/admin` — never behind
+the bearer token the add-on holds.
 
-## 8. Install the add-on
+## 8. The admin area
+
+There is a web UI at `https://<your API hostname>/admin` for everything in step 7,
+plus the accounts allowed to use it. It is optional — the CLI does the same
+things — but it is how you give somebody key management without giving them your
+Cloudflare account.
+
+Two roles. An **owner** manages admin accounts and everything below; a **manager**
+manages users and their keys only. Owners manage other owners and themselves, so
+handing over does not need a terminal — except that the last active owner cannot
+remove, demote or suspend themselves, since nobody would be left to let anyone
+back in.
+
+An admin account is not a team key. A key holder runs the add-on and never signs
+in here; an account holder manages the service and need not hold a key.
+
+### Signing in with a password
+
+The default. Put your address in `BOOTSTRAP_OWNER_EMAIL` (placeholder `── 4 ──`),
+then:
+
+```bash
+npm run admins init
+```
+
+That prints a one-time password. Sign in with it once, and the page makes you
+choose your own before it will do anything else. From there, add colleagues in
+the browser or from the terminal:
+
+```bash
+npm run admins list
+npm run admins add alice@example.com manager
+npm run admins role alice@example.com owner
+npm run admins passwd alice@example.com     # reset to a one-time password
+npm run admins suspend alice@example.com
+npm run admins remove alice@example.com
+```
+
+Set `ADMIN_EMAIL_DOMAIN` to restrict accounts to one domain, e.g. `example.com`.
+
+### Signing in with Cloudflare Access
+
+The advanced option: Google, Okta, or any other identity provider, with no
+password stored anywhere. In Cloudflare Zero Trust:
+
+1. **Settings → Custom Pages** shows your team domain, e.g.
+   `yourteam.cloudflareaccess.com`. Put it in `ACCESS_TEAM_DOMAIN`.
+2. **Settings → Authentication** → add Google (or your IdP) as a login method.
+3. **Access → Applications** → *Add an application* → *Self-hosted*.
+   - Application domain: your API hostname, path `admin`.
+   - Add a policy: *Allow*, with the rule **Emails ending in** `@example.com`.
+4. Open the application's overview and copy its **Application Audience (AUD)
+   tag** into `ACCESS_AUD`.
+5. Set `ADMIN_EMAIL_DOMAIN` to the same domain, and `AUTH_MODE = "access"`.
+6. `npm run deploy`, then `npm run admins init` to create the first owner —
+   which in this mode just records the role, since Cloudflare handles the login.
+
+The Worker verifies the signed token itself on every request. That is not
+belt-and-braces: an Access application is attached to a hostname on your zone,
+and the Worker also answers on its `workers.dev` URL, which no Access policy
+covers. A Worker that trusted the presence of a header would be wide open at that
+second address. It also re-checks the email domain in code, so a policy widened
+by a stray click in the dashboard cannot let in more than `ADMIN_EMAIL_DOMAIN`
+allows.
+
+If `AUTH_MODE` is `access` and any of the three settings is missing, `/admin`
+returns a 503 saying which — it fails closed rather than falling back to
+passwords.
+
+## 9. Install the add-on
 
 Give each person the API hostname and their key. They install
 [Linky Live](https://github.com/cartpauj/linky-live) in Local and enter both on

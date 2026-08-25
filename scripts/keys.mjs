@@ -540,7 +540,15 @@ async function main() {
 			 * KV under a hash nothing holds any more: still serving, still costing a
 			 * tunnel, and invisible to their owner.
 			 */
-			const hash = mintKey(person.name, { rolledAt: new Date().toISOString() });
+			/*
+			 * A revoked person stays revoked through a roll. Rolling replaces a lost
+			 * key; it is not a way to quietly restore somebody, and the Worker's
+			 * equivalent keeps the flag too.
+			 */
+			const hash = mintKey(person.name, {
+				active: person.active !== false,
+				rolledAt: new Date().toISOString(),
+			});
 
 			for (const site of sites) {
 				kvPut(`site:${hash}:${site.siteId}`, JSON.stringify({ ...site, kvKey: undefined, keyHash: hash }));

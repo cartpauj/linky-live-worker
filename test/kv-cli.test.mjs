@@ -196,9 +196,9 @@ test('deploy stops early when the namespace is missing', () => {
 });
 
 test('the template and the checker both point at the command', () => {
-	// Placeholder 4 is the one nobody should be typing, so both places someone
+	// Placeholder 5 is the one nobody should be typing, so both places someone
 	// looks while stuck have to say so.
-	assert.match(template, /── 4 ──[\s\S]{0,200}npm run kv/, 'the template must point at it');
+	assert.match(template, /── 5 ──[\s\S]{0,200}npm run kv/, 'the template must point at it');
 
 	const checker = readFileSync('scripts/check-config.mjs', 'utf8');
 

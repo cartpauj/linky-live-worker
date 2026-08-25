@@ -72,6 +72,44 @@ export async function sha256Hex(input) {
 }
 
 /**
+ * A url-safe random token, used for team keys and admin session cookies.
+ *
+ * 32 bytes, base64url — the same shape `npm run keys` has always minted, so a
+ * key issued from the web UI is indistinguishable from one issued at a
+ * terminal. url-safe because these travel through chat, email and password
+ * managers, all of which mangle `+` and `/`.
+ */
+export function randomToken(bytes = 32) {
+	const buf = new Uint8Array(bytes);
+	crypto.getRandomValues(buf);
+
+	return btoa(String.fromCharCode(...buf)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+/* ------------------------------------------------------------------ *
+ * KV key shapes
+ *
+ * Shared by the control plane, the gateway and the admin UI, so the layout
+ * is written down once rather than spelled out wherever it is needed.
+ *
+ *   teamkey:<sha256>        -> { name, active }      who may use the addon
+ *   site:<keyHash>:<siteId> -> full site record       addon-facing lookup
+ *   host:<hostname>         -> auth + bypass subset   gateway hot path
+ *   admin:<email>           -> { role, active }       who may reach /admin
+ *   session:<sha256>        -> { email }              a signed-in admin
+ *
+ * The last one is a separate space on purpose. Admin accounts are Google logins
+ * that manage this service; team keys are what the add-on authenticates with.
+ * They are not two views of one thing, and nothing joins them.
+ * ------------------------------------------------------------------ */
+
+export const teamKeyKey = (hash) => `teamkey:${hash}`;
+export const siteKey = (hash, siteId) => `site:${hash}:${siteId}`;
+export const hostKey = (hostname) => `host:${hostname}`;
+export const adminKey = (email) => `admin:${String(email).trim().toLowerCase()}`;
+export const sessionKey = (hash) => `session:${hash}`;
+
+/**
  * Validate a single auth-bypass path.
  *
  * The hard rule: a bypass may never open the whole site. `/` and any use of `*`

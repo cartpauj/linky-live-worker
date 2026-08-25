@@ -108,12 +108,24 @@ over HTTP can mint, list, or revoke a key.
 ### Repo layout
 
 ```
-src/index.js     control plane + auth gateway
-src/cf.js        Cloudflare API calls
-src/rewrite.js   streaming host rewrite of response bodies
-src/util.js      credential generation, validation, timing-safe compare
-wrangler.toml    configuration
-test/            gateway auth, key boundary, validation, DNS guard, rewriting
+src/index.js           control plane + auth gateway
+src/cf.js              Cloudflare API calls
+src/rewrite.js         streaming host rewrite of response bodies
+src/util.js            credential generation, validation, timing-safe compare
+
+src/admin.js           /admin routing and the checks every route shares
+src/admin-ui.js        the admin page, one inlined HTML document
+src/admin-auth.js      resolving who is asking, in either sign-in mode
+src/admin-accounts.js  admin accounts — the logins that reach /admin
+src/admin-keys.js      users and their keys, as the console manages them
+src/roles.js           owner and manager, and what each may do
+src/access.js          Cloudflare Access token verification
+src/passwords.js       PBKDF2 hashing, for the password sign-in
+src/sessions.js        KV-backed browser sessions, likewise
+
+wrangler.toml          configuration
+test/                  gateway auth, key boundary, validation, DNS guard,
+                       rewriting, roles, admin flows, Access verification
 ```
 
 ## Configuration
@@ -171,10 +183,79 @@ curl -s https://linky-live.example.com/v1/status
 
 Full walkthrough in [`SETUP.md`](SETUP.md).
 
+## The admin area
+
+There is a web UI at `https://<service>/admin` for everything below, and a CLI
+for the same things. Neither is the source of truth; KV is. Issue a key in a
+browser and the CLI agrees, revoke one at a terminal and the page catches up on
+its next load.
+
+Two roles, and they belong to **admin accounts** — the logins that reach that
+page:
+
+| | manages admin accounts | manages users and keys |
+|---|---|---|
+| **Owner** | yes | yes |
+| **Manager** | no | yes |
+
+Owners manage other owners, and themselves, so a team can hand over and step
+down without touching a terminal. The one thing that cannot happen is the last
+active owner losing their own access — remove, demote and suspend all refuse it,
+because there would be nobody left able to let anyone back in.
+
+An admin account is **not** a team key. A key holder runs the Local add-on and
+never signs in anywhere; an account holder manages the service and need not hold
+a key at all. Removing an account deletes nobody's key; removing a user deletes
+nobody's login.
+
+### Signing in
+
+Two modes, set by `AUTH_MODE` in `wrangler.toml`.
+
+**`password`** — the default, and nothing to set up beyond deploying. Put your
+address in `BOOTSTRAP_OWNER_EMAIL`, then:
+
+```bash
+npm run admins init                 # makes that address the first owner
+```
+
+It prints a one-time password. Sign in with it once and the page requires you to
+choose your own before it will do anything else. Passwords are PBKDF2-SHA256 with
+210,000 iterations, and the parameters are stored beside each hash so raising
+that later keeps every existing password working.
+
+**`access`** — Cloudflare Zero Trust in front of `/admin`, with Google, Okta, or
+any other identity provider behind it. No password is stored anywhere. Set
+`ACCESS_TEAM_DOMAIN`, `ACCESS_AUD` and `ADMIN_EMAIL_DOMAIN`, and see
+[`SETUP.md`](SETUP.md#the-admin-area). The Worker verifies the signed token on
+every request rather than trusting the header, because the `workers.dev` URL is
+not behind the Access application and a Worker that only looked for a header
+would be wide open at its other address.
+
+Either way an account still has to exist here. A valid company login that nobody
+has added gets told so plainly rather than being let in.
+
+### Managing accounts
+
+```bash
+npm run admins list                          # every account
+npm run admins add alice@example.com manager # add somebody
+npm run admins role alice@example.com owner  # change what they may do
+npm run admins passwd alice@example.com      # reset to a one-time password
+npm run admins suspend alice@example.com     # block them, keeping the record
+npm run admins restore alice@example.com     # undo a suspend
+npm run admins remove alice@example.com      # delete the account
+```
+
+This CLI runs as whoever is logged into wrangler, which is above every role — it
+is the way in when there is no way in, so it applies none of the web UI's limits
+except refusing to leave the service with no owner.
+
 ## Adding people
 
-One key per person, not per site. Keys live in KV and are managed from the
-terminal, so nothing needs a deploy and no credential goes in a config file.
+One key per person, not per site. Keys live in KV and are managed from the web UI
+or the terminal, so nothing needs a deploy and no credential goes in a config
+file.
 
 ```bash
 npm run keys issue "Alice"          # generates a key and prints it once
@@ -256,7 +337,14 @@ and route survive.
 teamkey:<sha256>        → { name, active }     who may use the addon
 site:<keyHash>:<siteId> → full site record     addon-facing lookup
 host:<hostname>         → auth + bypass subset gateway hot path
+
+admin:<email>           → { role, active }     who may reach /admin
+session:<sha256>        → { email }            a signed-in admin
 ```
+
+`admin:` is a separate space on purpose. Admin accounts are logins that manage
+this service; team keys are what the add-on authenticates with. They are not two
+views of one thing, nothing joins them, and no code looks one up from the other.
 
 The `host:` mirror exists so the gateway needs one KV read by hostname and never
 has to work out who owns the site.
