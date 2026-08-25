@@ -132,11 +132,22 @@ async function handleLogout(request, env) {
 async function handleState(env, actor) {
 	const mode = authMode(env);
 
+	/*
+	 * Spelled out field by field rather than spreading the actor.
+	 *
+	 * In password mode the actor carries its own session token, which the cookie
+	 * keeps HttpOnly so that no script on this page can read it. Handing the same
+	 * token back in a JSON body gives that away — to anything that can read a
+	 * response, and to wherever a response gets logged. Listing what goes out
+	 * means a field added to the actor later cannot quietly join it.
+	 */
+	const you = { email: actor.email, role: actor.role };
+
 	if (actor.mustChangePassword) {
 		// Nothing else is loaded until they have picked a password. A page that
 		// showed the console behind the change-password form would be showing
 		// somebody a service they have not finished signing in to.
-		return json({ ok: true, mode, you: actor, mustChangePassword: true });
+		return json({ ok: true, mode, you, mustChangePassword: true });
 	}
 
 	const all = canManageAdmins(actor) ? await listAccounts(env) : [];
@@ -162,7 +173,7 @@ async function handleState(env, actor) {
 	return json({
 		ok: true,
 		mode,
-		you: { email: actor.email, role: actor.role },
+		you,
 		canManageAdmins: canManageAdmins(actor),
 		canGrant: grantableBy(actor),
 		domain: emailDomain(env),

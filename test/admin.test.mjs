@@ -439,3 +439,24 @@ test('the control plane still answers on its own hostname', async () => {
 	assert.equal(res.status, 401);
 	assert.match((await res.json()).error, /API key/);
 });
+
+test('the session token never comes back in a response body', async () => {
+	/*
+	 * The cookie is HttpOnly so that nothing on the page can read the token.
+	 * Returning it in JSON hands it to anything that can read a response, and to
+	 * wherever that response is logged — which would undo the flag entirely.
+	 */
+	const env = await envWith({ 'owner@x.com': { role: 'owner', mustChangePassword: true } });
+	const cookie = await signIn(env, 'owner@x.com');
+
+	// Both shapes of the state response: before the forced change, and after.
+	const first = await (await state(env, cookie)).text();
+	assert.ok(!first.includes(cookie), 'the token must not appear before the password change');
+
+	const changed = await post(env, '/admin/api/password', { password: 'a-much-better-password' }, cookie);
+	const fresh = cookieFrom(changed);
+
+	const second = await (await state(env, fresh)).text();
+	assert.ok(!second.includes(fresh), 'nor after it');
+	assert.ok(!second.includes('token'), 'and no field named token either');
+});
